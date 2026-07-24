@@ -20,8 +20,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // Build each folder's full path by walking up its parent chain, so
   // subfolders (e.g. Yard/Arresters/Line Arresters) keep their nesting in
   // the exported ZIP instead of all landing flat under the area.
-  const foldersById = new Map(project.folders.map((f) => [f.id, f]));
-  function folderPath(folder: (typeof project.folders)[number]): string {
+  const folders = project.folders;
+  const foldersById = new Map(folders.map((f) => [f.id, f]));
+  function folderPath(folder: (typeof folders)[number]): string {
     const parts = [sanitizeForPath(folder.name)];
     let cur = folder;
     while (cur.parentId) {
@@ -36,7 +37,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const entries: ZipEntry[] = [];
   const usedNames = new Map<string, Set<string>>(); // per-folder-path used filenames
 
-  for (const folder of project.folders) {
+  for (const folder of folders) {
     const path = folderPath(folder);
     if (!usedNames.has(path)) usedNames.set(path, new Set());
     const used = usedNames.get(path)!;
