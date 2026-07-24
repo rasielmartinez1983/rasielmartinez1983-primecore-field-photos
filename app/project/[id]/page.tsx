@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use as usePromise } from "react";
 import HeaderBgStrip from "@/components/HeaderBgStrip";
+import { saveDirHandle, loadDirHandle } from "@/lib/folderHandleStore";
 
 type Project = {
   id: string;
@@ -13,6 +14,13 @@ type Project = {
 
 type Site = { id: string; name: string; folderCount: number };
 
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 export default function ProjectPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = usePromise(params);
   const [project, setProject] = useState<Project | null>(null);
@@ -21,6 +29,9 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [siteName, setSiteName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [fsAccessSupported, setFsAccessSupported] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
+  const [saving, setSaving] = useState(false);
 
   function loadSites() {
     fetch(`/api/project-areas?projectId=${id}`)
@@ -35,8 +46,81 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       .then(setProject)
       .catch(() => setProject(null));
     loadSites();
+    setFsAccessSupported(typeof window !== "undefined" && "showDirectoryPicker" in window);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Reuses the folder the user picked last time (e.g. "Primecore Field
+  // Photos"), re-asking for write permission if it's expired, or falls back
+  // to the native folder picker if nothing's saved yet or it was revoked.
+  async function pickOrReuseBaseDir(): Promise<any | null> {
+    const saved = await loadDirHandle();
+    if (saved) {
+      try {
+        const perm = await saved.queryPermission({ mode: "readwrite" });
+        if (perm === "granted") return saved;
+        if (perm === "prompt") {
+          const req = await saved.requestPermission({ mode: "readwrite" });
+          if (req === "granted") return saved;
+        }
+      } catch {
+        // Handle no longer valid (folder moved/deleted) -- fall through to
+        // asking the user to pick again below.
+      }
+    }
+    try {
+      const handle = await (window as any).showDirectoryPicker({ mode: "readwrite" });
+      await saveDirHandle(handle);
+      return handle;
+    } catch {
+      return null; // user cancelled the picker
+    }
+  }
+
+  async function saveToFolder() {
+    setSaving(true);
+    setSaveStatus("Choosing folder…");
+    try {
+      const baseDir = await pickOrReuseBaseDir();
+      if (!baseDir) {
+        setSaveStatus("");
+        return;
+      }
+      setSaveStatus("Loading photos…");
+      const res = await fetch(`/api/projects/${id}/export-files`);
+      const data = await res.json();
+      if (!res.ok) {
+        setSaveStatus(data.error || "Could not load photos.");
+        return;
+      }
+      if (!data.entries || data.entries.length === 0) {
+        setSaveStatus("This project doesn't have any photos yet.");
+        return;
+      }
+
+      const projectDir = await baseDir.getDirectoryHandle(data.projectFolderName, { create: true });
+      let done = 0;
+      for (const entry of data.entries as { path: string; dataBase64: string }[]) {
+        const parts = entry.path.split("/");
+        const filename = parts.pop()!;
+        let dir = projectDir;
+        for (const part of parts) {
+          dir = await dir.getDirectoryHandle(part, { create: true });
+        }
+        const fileHandle = await dir.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(base64ToBytes(entry.dataBase64));
+        await writable.close();
+        done++;
+        setSaveStatus(`Saving photos… ${done}/${data.entries.length}`);
+      }
+      setSaveStatus(`Saved ${done} photo${done === 1 ? "" : "s"} to "${data.projectFolderName}".`);
+    } catch {
+      setSaveStatus("Something went wrong saving to that folder. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function addSite(e: React.FormEvent) {
     e.preventDefault();
@@ -173,11 +257,33 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         <div className="gallery-header">
           <h1 style={{ fontSize: 15, margin: 0 }}>Download everything</h1>
         </div>
+
+        {fsAccessSupported && (
+          <>
+            <button
+              type="button"
+              className="camera-button"
+              onClick={saveToFolder}
+              disabled={saving}
+              style={{ width: "100%" }}
+            >
+              {saving ? "Saving…" : "Save to folder on this computer"}
+            </button>
+            <p className="muted" style={{ marginTop: 8 }}>
+              First time, pick your "Primecore Field Photos" folder (or wherever you keep these). The app
+              remembers it and creates a subfolder named after this project automatically next time.
+            </p>
+            {saveStatus && <div className="status-text status-ok">{saveStatus}</div>}
+            <div style={{ height: 10 }} />
+          </>
+        )}
+
         <a className="secondary-button" href={`/api/projects/${id}/zip`}>
           Download full project (ZIP)
         </a>
         <p className="muted" style={{ marginTop: 8 }}>
           Bundles every photo in the project organized by site/folder, ready to drop into your AMP folder.
+          {fsAccessSupported ? " Use this on the phone, or if \"Save to folder\" above doesn't work." : ""}
         </p>
       </main>
     </>
