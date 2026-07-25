@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, use as usePromise } from "react";
 import HeaderBgStrip from "@/components/HeaderBgStrip";
+import ManualCropBox from "@/components/ManualCropBox";
 
 type Folder = {
   id: string;
@@ -61,6 +62,11 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [photos, setPhotos] = useState<Photo[] | null>(null);
   const [subfolders, setSubfolders] = useState<Subfolder[] | null>(null);
   const [phase, setPhase] = useState("");
+  // Two-stage pipeline for a batch: raw photos wait in cropQueue, get
+  // manually cropped one at a time (cropping = the one currently in the
+  // crop tool), and only then land in queue for the phase-pick + save step.
+  const [cropQueue, setCropQueue] = useState<string[]>([]);
+  const [cropping, setCropping] = useState<string | null>(null);
   // Queue of pending photos from the current batch (front = the one being reviewed now).
   const [queue, setQueue] = useState<string[]>([]);
   const [batchTotal, setBatchTotal] = useState(0);
@@ -108,11 +114,32 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   async function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    const dataUrls = await Promise.all(files.map((f) => resizeImageFile(f)));
-    setQueue(dataUrls);
-    setBatchTotal(dataUrls.length);
+    const resized = await Promise.all(files.map((f) => resizeImageFile(f)));
+    setCropQueue(resized);
+    setBatchTotal(resized.length);
     setPhase("");
     setStatus(null);
+  }
+
+  // Pulls the next raw photo into the crop tool once there's nothing left
+  // to review/save first -- keeps the flow strictly one-at-a-time (crop,
+  // then review+save, then crop the next one), instead of racing ahead and
+  // yanking the crop tool up mid-review.
+  useEffect(() => {
+    if (!cropping && queue.length === 0 && cropQueue.length > 0) {
+      setCropping(cropQueue[0]);
+      setCropQueue((q) => q.slice(1));
+    }
+  }, [cropping, queue.length, cropQueue]);
+
+  function onCropConfirmed(croppedDataUrl: string) {
+    setQueue((q) => [...q, croppedDataUrl]);
+    setCropping(null);
+  }
+
+  function onCropSkipped() {
+    if (cropping) setQueue((q) => [...q, cropping]);
+    setCropping(null);
   }
 
   async function saveCurrentPhoto() {
@@ -154,6 +181,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
 
   function discardBatch() {
     setQueue([]);
+    setCropQueue([]);
+    setCropping(null);
     setPhase("");
     setBatchTotal(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -237,7 +266,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
       : `/project/${folder.projectId}/${folder.area}`
     : "/";
   const current = queue[0];
-  const doneInBatch = batchTotal - queue.length;
+  const totalRemainingInBatch = cropQueue.length + (cropping ? 1 : 0) + queue.length;
+  const doneInBatch = batchTotal - totalRemainingInBatch;
 
   return (
     <>
@@ -260,7 +290,16 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
         </p>
 
         <div className="capture-card">
-          {current ? (
+          {cropping ? (
+            <>
+              {batchTotal > 1 && (
+                <p className="muted" style={{ marginTop: 0 }}>
+                  Photo {doneInBatch + 1} of {batchTotal}
+                </p>
+              )}
+              <ManualCropBox src={cropping} onConfirm={onCropConfirmed} onSkip={onCropSkipped} />
+            </>
+          ) : current ? (
             <>
               {batchTotal > 1 && (
                 <p className="muted" style={{ marginTop: 0 }}>
@@ -299,7 +338,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               >
                 Skip this one
               </button>
-              {queue.length > 1 && (
+              {totalRemainingInBatch > 1 && (
                 <>
                   <div style={{ height: 10 }} />
                   <button
@@ -309,7 +348,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                     disabled={busy}
                     style={{ width: "100%" }}
                   >
-                    Discard remaining ({queue.length})
+                    Discard remaining ({totalRemainingInBatch - 1})
                   </button>
                 </>
               )}
