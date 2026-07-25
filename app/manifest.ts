@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "PRIMECORE/AMPS",
-    short_name: "PRIMECORE/AMPS",
+    name: "PrimeCore Pictures",
+    short_name: "PrimeCore Pictures",
     description: "Capture and organize equipment photos by project in the field.",
     start_url: "/",
     display: "standalone",

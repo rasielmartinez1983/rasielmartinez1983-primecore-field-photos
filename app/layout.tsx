@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "PRIMECORE/AMPS",
+    title: "PrimeCore Pictures",
   },
   icons: {
     icon: [
