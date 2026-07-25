@@ -487,7 +487,7 @@ input[type="date"] {
 .gallery-item-delete-btn {
   position: absolute;
   top: 5px;
-  right: 5px;
+  left: 5px;
   padding: 2px 6px;
   border-radius: 999px;
   background: #fef3f2;
@@ -505,6 +505,28 @@ input[type="date"] {
   background: #b42318;
   border-color: #b42318;
   color: #fff;
+}
+
+.gallery-item-edit-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e4e7ec;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #667085;
+  cursor: pointer;
+}
+
+.gallery-item-edit-btn:active {
+  border-color: #101828;
+  color: #101828;
 }
 
 .gallery-item img {

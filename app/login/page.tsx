@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [supported, setSupported] = useState(true);
@@ -26,7 +27,12 @@ export default function LoginPage() {
       const res = await fetch(`/api/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, name: mode === "register" ? name : undefined }),
+        body: JSON.stringify({
+          username,
+          password,
+          name: mode === "register" ? name : undefined,
+          code: mode === "register" ? code : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -106,10 +112,21 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
         />
+        {mode === "register" && (
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Invite code"
+          />
+        )}
 
         {error && <div className="error-text">{error}</div>}
 
-        <button type="submit" disabled={busy || !username || !password}>
+        <button
+          type="submit"
+          disabled={busy || !username || !password || (mode === "register" && !code)}
+        >
           {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
         </button>
 

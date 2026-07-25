@@ -25,6 +25,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action?: s
     const username = String(body.username || "").trim().toLowerCase();
     const password = String(body.password || "");
     const name = String(body.name || "").trim() || null;
+    const code = String(body.code || "").trim();
+
+    // If REGISTER_CODE is configured, only people who know it can create an
+    // account -- keeps this app to just the people you've shared the code
+    // with, instead of anyone with the URL. Left unset, registration stays
+    // open (e.g. for local dev where you don't want to bother with a code).
+    const requiredCode = process.env.REGISTER_CODE;
+    if (requiredCode && code !== requiredCode) {
+      return NextResponse.json({ error: "Invalid invite code." }, { status: 403 });
+    }
 
     if (!username || !password) {
       return NextResponse.json({ error: "Username and password are required." }, { status: 400 });

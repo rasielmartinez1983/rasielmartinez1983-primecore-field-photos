@@ -86,6 +86,12 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState("");
 
+  // Rename-a-saved-photo state (separate from subfolder rename above).
+  const [renamingPhotoId, setRenamingPhotoId] = useState<string | null>(null);
+  const [renamePhotoValue, setRenamePhotoValue] = useState("");
+  const [renamePhotoBusy, setRenamePhotoBusy] = useState(false);
+  const [renamePhotoError, setRenamePhotoError] = useState("");
+
   function loadFolder() {
     fetch(`/api/folders/${id}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -205,6 +211,37 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     if (!confirm("Delete this photo?")) return;
     await fetch(`/api/photos/${photoId}`, { method: "DELETE" });
     loadPhotos();
+  }
+
+  function startRenamePhoto(p: Photo) {
+    setRenamingPhotoId(p.id);
+    // Edit just the name, without the ".jpg" the field always keeps.
+    setRenamePhotoValue(p.filename.replace(/\.jpg$/i, ""));
+    setRenamePhotoError("");
+  }
+
+  async function saveRenamePhoto() {
+    if (!renamingPhotoId || !renamePhotoValue.trim()) return;
+    setRenamePhotoBusy(true);
+    setRenamePhotoError("");
+    try {
+      const res = await fetch(`/api/photos/${renamingPhotoId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: renamePhotoValue.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRenamePhotoError(data.error || "Could not rename the photo.");
+        return;
+      }
+      setRenamingPhotoId(null);
+      loadPhotos();
+    } catch {
+      setRenamePhotoError("Could not connect. Try again.");
+    } finally {
+      setRenamePhotoBusy(false);
+    }
   }
 
   async function addSubfolder(e: React.FormEvent) {
@@ -334,7 +371,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                       color: phase === p ? "#fff" : "#101828",
                     }}
                   >
-                    {p || "None"}
+                    {p ? `${p} Phase` : "None"}
                   </button>
                 ))}
               </div>
@@ -529,6 +566,42 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
           )}
         </div>
 
+        {renamingPhotoId && (
+          <div className="capture-card">
+            <label className="field-label" htmlFor="renamePhotoInput">
+              Rename photo
+            </label>
+            <input
+              id="renamePhotoInput"
+              type="text"
+              value={renamePhotoValue}
+              onChange={(e) => setRenamePhotoValue(e.target.value)}
+              autoFocus
+            />
+            <p className="muted" style={{ marginTop: -8, marginBottom: 14 }}>
+              ".jpg" is added automatically.
+            </p>
+            {renamePhotoError && <div className="error-text">{renamePhotoError}</div>}
+            <button
+              className="camera-button"
+              onClick={saveRenamePhoto}
+              disabled={renamePhotoBusy || !renamePhotoValue.trim()}
+            >
+              {renamePhotoBusy ? "Saving…" : "Save name"}
+            </button>
+            <div style={{ height: 10 }} />
+            <button
+              type="button"
+              className="secondary-button"
+              style={{ width: "100%" }}
+              onClick={() => setRenamingPhotoId(null)}
+              disabled={renamePhotoBusy}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
         {photos === null && <p className="muted">Loading…</p>}
         {photos && photos.length === 0 && <div className="empty-state">No photos taken directly in this folder yet.</div>}
         {photos && photos.length > 0 && (
@@ -537,6 +610,18 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               <div key={p.id} className="gallery-item">
                 <img src={p.dataUrl} alt={p.filename} />
                 <div className="gallery-item-caption">{p.filename}</div>
+                <span
+                  role="button"
+                  aria-label={`Rename ${p.filename}`}
+                  className="gallery-item-edit-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    startRenamePhoto(p);
+                  }}
+                >
+                  ✎
+                </span>
                 <span
                   role="button"
                   aria-label={`Delete ${p.filename}`}
