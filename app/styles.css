@@ -139,12 +139,20 @@ header.app-header {
   text-decoration: underline;
 }
 
-.app-header-tagline {
-  font-size: 13px;
-  font-weight: 600;
-  color: #d0d5dd;
-  white-space: nowrap;
+.app-header-left {
   justify-self: start;
+}
+
+header.app-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+header.app-header p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #9aa4b2;
 }
 
 /* ===== Layout ===== */

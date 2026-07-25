@@ -9,17 +9,18 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "backup": "tsx scripts/backup-to-json.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/client": "6.10.0",
     "@simplewebauthn/browser": "^10.0.0",
     "@simplewebauthn/server": "^10.0.0",
-    "prisma": "6.10.0",
-    "tsx": "4.19.4",
     "next": "15.3.8",
+    "prisma": "6.10.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "tsx": "4.19.4"
   },
   "devDependencies": {
     "@types/node": "22.15.29",
@@ -29,5 +30,8 @@
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
+  },
+  "optionalDependencies": {
+    "@esbuild/linux-x64": "^0.25.12"
   }
 }

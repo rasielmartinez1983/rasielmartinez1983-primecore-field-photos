@@ -104,12 +104,15 @@ export default function HomePage() {
       <header className="app-header">
         <HeaderBgStrip />
         <div className="app-header-row">
-          <div className="app-header-tagline">Name Plate information</div>
+          <div className="app-header-left">
+            <h1>PrimeCore Power Solution</h1>
+            <p>Field photos, organized by project.</p>
+          </div>
           <img src="/logo.png" alt="PrimeCore" className="app-logo" />
           {me && (
             <div className="app-header-user">
               <span>{me.name || me.username}</span>
-              <a href="/settings/face-id" className="app-header-user-link">Face ID</a>
+              <a href="/settings/face-id" className="app-header-user-link">Set up Face ID</a>
               <a
                 href="#"
                 className="app-header-user-link"
