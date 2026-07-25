@@ -1,6 +1,6 @@
 // Builds photo filenames matching the tech's requested structure:
-//   "{Client}_{Substation}_{FolderName}{_Phase?}.jpg"
-// e.g. "FPL_Bandit_Arresters_A.jpg" or "FPL_Bandit_DC Load Center.jpg"
+//   "{Client}_{Substation}_{FolderName}{_Phase Phase?}.jpg"
+// e.g. "FPL_Bandit_Arresters_A Phase.jpg" or "FPL_Bandit_DC Load Center.jpg"
 // (no phase picked). The folder is whichever folder/subfolder the photo
 // was actually taken in.
 
@@ -25,6 +25,6 @@ export function buildPhotoFilename(
   const cli = sanitizeForPath(client) || "Client";
   const sub = sanitizeForPath(substationName) || "Substation";
   const folder = sanitizeForPath(folderName) || "Folder";
-  const phaseSuffix = phase ? `_${phase}` : "";
+  const phaseSuffix = phase ? `_${phase} Phase` : "";
   return `${cli}_${sub}_${folder}${phaseSuffix}.jpg`;
 }
