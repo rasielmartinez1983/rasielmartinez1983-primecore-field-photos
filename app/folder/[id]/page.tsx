@@ -65,10 +65,13 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   // Two-stage pipeline for a batch: raw photos wait in cropQueue, get
   // manually cropped one at a time (cropping = the one currently in the
   // crop tool), and only then land in queue for the phase-pick + save step.
+  // Each queue entry keeps the original (pre-crop) photo alongside the
+  // cropped result, so "Adjust crop" can reopen the crop tool on the full,
+  // untrimmed photo instead of re-cropping an already-cropped image.
   const [cropQueue, setCropQueue] = useState<string[]>([]);
   const [cropping, setCropping] = useState<string | null>(null);
   // Queue of pending photos from the current batch (front = the one being reviewed now).
-  const [queue, setQueue] = useState<string[]>([]);
+  const [queue, setQueue] = useState<{ original: string; cropped: string }[]>([]);
   const [batchTotal, setBatchTotal] = useState(0);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null);
@@ -133,13 +136,23 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   }, [cropping, queue.length, cropQueue]);
 
   function onCropConfirmed(croppedDataUrl: string) {
-    setQueue((q) => [...q, croppedDataUrl]);
+    if (cropping) setQueue((q) => [...q, { original: cropping, cropped: croppedDataUrl }]);
     setCropping(null);
   }
 
   function onCropSkipped() {
-    if (cropping) setQueue((q) => [...q, cropping]);
+    if (cropping) setQueue((q) => [...q, { original: cropping, cropped: cropping }]);
     setCropping(null);
+  }
+
+  // Reopens the crop tool on this photo's original, untrimmed version, in
+  // case the crop didn't come out right -- pulls it back out of the review
+  // queue so it goes through the crop step again before returning here.
+  function reCropCurrent() {
+    const current = queue[0];
+    if (!current) return;
+    setCropping(current.original);
+    setQueue((q) => q.slice(1));
   }
 
   async function saveCurrentPhoto() {
@@ -151,7 +164,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
       const res = await fetch("/api/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderId: id, phase: phase || null, dataUrl: current }),
+        body: JSON.stringify({ folderId: id, phase: phase || null, dataUrl: current.cropped }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -306,7 +319,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                   Photo {doneInBatch + 1} of {batchTotal}
                 </p>
               )}
-              <img src={current} alt="preview" className="preview-thumb" />
+              <img src={current.cropped} alt="preview" className="preview-thumb" />
               <label className="field-label">Phase (optional)</label>
               <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                 {PHASES.map((p) => (
@@ -327,6 +340,16 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               </div>
               <button className="camera-button" onClick={saveCurrentPhoto} disabled={busy}>
                 {busy ? "Saving…" : "Save photo"}
+              </button>
+              <div style={{ height: 10 }} />
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={reCropCurrent}
+                disabled={busy}
+                style={{ width: "100%" }}
+              >
+                Adjust crop
               </button>
               <div style={{ height: 10 }} />
               <button
