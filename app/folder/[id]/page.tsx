@@ -472,14 +472,21 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
         {photos && photos.length > 0 && (
           <div className="gallery-grid">
             {photos.map((p) => (
-              <div
-                key={p.id}
-                className="gallery-item"
-                onClick={() => deletePhoto(p.id)}
-                title="Tap to delete"
-              >
+              <div key={p.id} className="gallery-item">
                 <img src={p.dataUrl} alt={p.filename} />
                 <div className="gallery-item-caption">{p.filename}</div>
+                <span
+                  role="button"
+                  aria-label={`Delete ${p.filename}`}
+                  className="gallery-item-delete-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    deletePhoto(p.id);
+                  }}
+                >
+                  Delete
+                </span>
               </div>
             ))}
           </div>
