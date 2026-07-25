@@ -85,7 +85,6 @@ export default function LoginPage() {
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={submit}>
-        <img src="/logo.png" alt="PrimeCore" className="login-logo" />
         <h1>PrimeCore Field Photos</h1>
         <p className="muted">{mode === "login" ? "Sign in to your account" : "Create your account"}</p>
 

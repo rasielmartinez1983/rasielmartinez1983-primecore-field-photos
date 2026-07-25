@@ -139,6 +139,14 @@ header.app-header {
   text-decoration: underline;
 }
 
+.app-header-tagline {
+  font-size: 13px;
+  font-weight: 600;
+  color: #d0d5dd;
+  white-space: nowrap;
+  justify-self: start;
+}
+
 /* ===== Layout ===== */
 main {
   max-width: 720px;

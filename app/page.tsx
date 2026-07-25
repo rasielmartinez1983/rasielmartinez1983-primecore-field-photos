@@ -104,7 +104,7 @@ export default function HomePage() {
       <header className="app-header">
         <HeaderBgStrip />
         <div className="app-header-row">
-          <div />
+          <div className="app-header-tagline">Name Plate information</div>
           <img src="/logo.png" alt="PrimeCore" className="app-logo" />
           {me && (
             <div className="app-header-user">
