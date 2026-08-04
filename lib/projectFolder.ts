@@ -2,14 +2,19 @@
 // Photos project, so "Save to OneDrive" here lands inside the same
 // project folder ops.primecore already created (see
 // primecore-ops-local/lib/projectFolder.ts -- the folder structure is
-// "Projectos <year>/<year>-<Project#>-<Name>/AMPS/...").
+// "Projectos <year>/<Project#>_<Client>_<Name>_<Date>/AMPS/...").
 //
 // Field Photos has its own database, separate from ops.primecore -- there
 // is no shared project id or number to join on. Instead, the user names
 // the Field Photos project identically to the ops.primecore project's
-// Name (the text after the second "-" in the OneDrive folder), and this
-// looks for a folder under any "Projectos <year>" whose name ends with
-// "-<that name>".
+// Name (the 3rd underscore-delimited segment of the folder name), and
+// this looks for a folder under any "Projectos <year>" whose Name segment
+// matches.
+//
+// Also still recognizes the OLD "<year>-<Project#>-<Name>" folder format
+// (folders created before this naming change) by falling back to an
+// endsWith("-<name>") check, so projects created before this rewrite keep
+// working without needing to be renamed in OneDrive.
 //
 // Deliberately lists folders directly (root/children, then each "Projectos
 // <year>"/children) instead of using Microsoft Graph's search API --
@@ -22,8 +27,8 @@
 import { listFolder } from "./msGraph";
 
 // Returns the drive-relative path of the matching project folder (e.g.
-// "Projectos 2026/2026-2451-Clover Substation"), or null if nothing
-// matches.
+// "Projectos 2026/2451_FPL_Clover Substation_2026-08-05"), or null if
+// nothing matches.
 export async function findProjectFolderPath(name: string): Promise<string | null> {
   const target = name.trim().toLowerCase();
   if (!target) return null;
@@ -31,7 +36,7 @@ export async function findProjectFolderPath(name: string): Promise<string | null
   const root = await listFolder("");
   const yearFolders = root.filter((r) => r.isFolder && r.name.startsWith("Projectos "));
 
-  const candidates: { path: string; folder: string }[] = [];
+  const candidates: { path: string; folder: string; exact: boolean }[] = [];
   for (const yearFolder of yearFolders) {
     let children;
     try {
@@ -41,18 +46,33 @@ export async function findProjectFolderPath(name: string): Promise<string | null
     }
     for (const child of children) {
       if (!child.isFolder) continue;
-      if (child.name.trim().toLowerCase().endsWith(`-${target}`)) {
-        candidates.push({ path: `${yearFolder.name}/${child.name}`, folder: child.name });
+      const folderName = child.name.trim();
+
+      // New format: "<Project#>_<Client>_<Name>_<Date>" -- exactly 4
+      // underscore-delimited segments (each segment has its own
+      // underscores stripped when the folder is created, so a real match
+      // always has exactly 4 parts). The Name is the 3rd segment.
+      const parts = folderName.split("_");
+      if (parts.length === 4 && parts[2].trim().toLowerCase() === target) {
+        candidates.push({ path: `${yearFolder.name}/${folderName}`, folder: folderName, exact: true });
+        continue;
+      }
+
+      // Old format: "<year>-<Project#>-<Name>".
+      if (folderName.toLowerCase().endsWith(`-${target}`)) {
+        candidates.push({ path: `${yearFolder.name}/${folderName}`, folder: folderName, exact: false });
       }
     }
   }
 
   if (candidates.length === 0) return null;
 
-  // More than one folder can match "-<name>" (e.g. a project whose name is
-  // itself a suffix of another's, or the same project re-created across
-  // years). Prefer the shortest name -- the closest match with the least
-  // extra text.
-  candidates.sort((a, b) => a.folder.length - b.folder.length);
+  // Prefer an exact new-format Name match over an old-format suffix
+  // match; among ties, prefer the shortest folder name -- the closest
+  // match with the least extra text.
+  candidates.sort((a, b) => {
+    if (a.exact !== b.exact) return a.exact ? -1 : 1;
+    return a.folder.length - b.folder.length;
+  });
   return candidates[0].path;
 }
