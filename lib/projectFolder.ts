@@ -8,20 +8,18 @@
 // is no shared project id or number to join on. Instead, the user names
 // the Field Photos project identically to the ops.primecore project's
 // Name (the text after the second "-" in the OneDrive folder), and this
-// searches OneDrive itself (via Microsoft Graph's search, not a database
-// lookup) for a folder under any "Projectos <year>" whose name ends with
+// looks for a folder under any "Projectos <year>" whose name ends with
 // "-<that name>".
+//
+// Deliberately lists folders directly (root/children, then each "Projectos
+// <year>"/children) instead of using Microsoft Graph's search API --
+// search runs against a separate index that can lag several minutes
+// (sometimes longer) behind a folder that was just created, which made
+// "Save to OneDrive" fail right after a brand-new project's folder had
+// already been created. Listing children reads the live folder structure
+// directly, so a folder created seconds ago is found immediately.
 
-import { searchDrive } from "./msGraph";
-
-function stripDriveRootPrefix(path: string): string {
-  // Graph's parentReference.path looks like "/drive/root:/Projectos 2026"
-  // (or just "/drive/root:" for the drive root itself).
-  const marker = "/root:";
-  const idx = path.indexOf(marker);
-  if (idx === -1) return "";
-  return decodeURIComponent(path.slice(idx + marker.length)).replace(/^\/+/, "");
-}
+import { listFolder } from "./msGraph";
 
 // Returns the drive-relative path of the matching project folder (e.g.
 // "Projectos 2026/2026-2451-Clover Substation"), or null if nothing
@@ -30,20 +28,31 @@ export async function findProjectFolderPath(name: string): Promise<string | null
   const target = name.trim().toLowerCase();
   if (!target) return null;
 
-  const results = await searchDrive(name);
-  const candidates = results.filter((r) => {
-    if (!r.isFolder) return false;
-    const parent = stripDriveRootPrefix(r.parentPath || "");
-    if (!parent.startsWith("Projectos ")) return false;
-    return r.name.trim().toLowerCase().endsWith(`-${target}`);
-  });
+  const root = await listFolder("");
+  const yearFolders = root.filter((r) => r.isFolder && r.name.startsWith("Projectos "));
+
+  const candidates: { path: string; folder: string }[] = [];
+  for (const yearFolder of yearFolders) {
+    let children;
+    try {
+      children = await listFolder(yearFolder.name);
+    } catch {
+      continue; // best-effort -- one bad/empty year folder shouldn't block the others
+    }
+    for (const child of children) {
+      if (!child.isFolder) continue;
+      if (child.name.trim().toLowerCase().endsWith(`-${target}`)) {
+        candidates.push({ path: `${yearFolder.name}/${child.name}`, folder: child.name });
+      }
+    }
+  }
+
   if (candidates.length === 0) return null;
 
-  // Graph's search is fuzzy, so more than one folder can match "-<name>"
-  // (e.g. a project whose name is itself a suffix of another's). Prefer
-  // the shortest name -- the closest match with the least extra text.
-  candidates.sort((a, b) => a.name.length - b.name.length);
-  const best = candidates[0];
-  const parent = stripDriveRootPrefix(best.parentPath || "");
-  return `${parent}/${best.name}`;
+  // More than one folder can match "-<name>" (e.g. a project whose name is
+  // itself a suffix of another's, or the same project re-created across
+  // years). Prefer the shortest name -- the closest match with the least
+  // extra text.
+  candidates.sort((a, b) => a.folder.length - b.folder.length);
+  return candidates[0].path;
 }

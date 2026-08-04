@@ -143,8 +143,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
         setOneDriveStatus(data.error || "Could not upload to OneDrive.");
         return;
       }
+      // lastError can be set even when uploaded/failed are both 0 -- e.g.
+      // no matching ops.primecore project folder was found in OneDrive at
+      // all, so nothing was even attempted. Show that specific reason
+      // instead of the generic "no photos" message.
       if (data.uploaded === 0 && data.failed === 0) {
-        setOneDriveStatus("This project doesn't have any photos yet.");
+        setOneDriveStatus(data.lastError || "This project doesn't have any photos yet.");
         return;
       }
       setOneDriveStatus(
