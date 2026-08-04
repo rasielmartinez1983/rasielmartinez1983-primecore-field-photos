@@ -168,3 +168,40 @@ export async function uploadFile(path: string, content: Buffer, contentType = "a
   }
   return toDriveItem(await res.json());
 }
+
+// Looks up a single item by its exact drive-relative path. Returns null
+// (not an error) if nothing exists there yet.
+export async function getItem(path: string): Promise<DriveItem | null> {
+  const encodedPath = encodeURIComponent(path).replace(/%2F/g, "/");
+  const res = await graphFetch(
+    `${driveBase()}/root:/${encodedPath}?$select=id,name,folder,file,size,lastModifiedDateTime,parentReference`
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`OneDrive getItem("${path}") failed: ${res.status} ${detail}`);
+  }
+  return toDriveItem(await res.json());
+}
+
+// Renames the item at `path` in place -- same parent folder, just a new
+// name -- and returns the updated item. Returns null (not an error) if
+// nothing exists at that path yet, e.g. a Field Photos folder that was
+// never backed up to OneDrive. Used when a Folder is renamed in the app
+// (see /api/folders/[id] PATCH) so its already-uploaded OneDrive folder
+// gets renamed to match instead of a future "Save to OneDrive" silently
+// creating a second, duplicate folder under the new name.
+export async function renameItem(path: string, newName: string): Promise<DriveItem | null> {
+  const item = await getItem(path);
+  if (!item) return null;
+  const res = await graphFetch(`${driveBase()}/items/${item.id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: newName }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`OneDrive renameItem("${path}" -> "${newName}") failed: ${res.status} ${detail}`);
+  }
+  return toDriveItem(await res.json());
+}
