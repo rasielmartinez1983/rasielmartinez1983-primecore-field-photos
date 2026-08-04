@@ -32,6 +32,8 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
   const [fsAccessSupported, setFsAccessSupported] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [oneDriveStatus, setOneDriveStatus] = useState("");
+  const [oneDriveSaving, setOneDriveSaving] = useState(false);
 
   function loadSites() {
     fetch(`/api/project-areas?projectId=${id}`)
@@ -119,6 +121,41 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
       setSaveStatus("Something went wrong saving to that folder. Try again.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Manual "Save to OneDrive" -- NOT automatic. Uploads every photo in this
+  // project to primecoreps' OneDrive (see MICROSOFT_ONEDRIVE_BACKUP_ROOT),
+  // mirroring the same folder structure as the local/ZIP exports above, so
+  // Danys (or anyone else with access to that OneDrive) sees the same
+  // photos without needing this app installed.
+  async function saveToOneDrive() {
+    setOneDriveSaving(true);
+    setOneDriveStatus("Uploading to OneDrive…");
+    try {
+      const res = await fetch("/api/onedrive/backup-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOneDriveStatus(data.error || "Could not upload to OneDrive.");
+        return;
+      }
+      if (data.uploaded === 0 && data.failed === 0) {
+        setOneDriveStatus("This project doesn't have any photos yet.");
+        return;
+      }
+      setOneDriveStatus(
+        data.failed > 0
+          ? `Uploaded ${data.uploaded}, ${data.failed} failed${data.lastError ? `: ${data.lastError}` : ""}`
+          : `Uploaded ${data.uploaded} photo${data.uploaded === 1 ? "" : "s"} to OneDrive.`
+      );
+    } catch {
+      setOneDriveStatus("Could not connect. Try again.");
+    } finally {
+      setOneDriveSaving(false);
     }
   }
 
@@ -277,6 +314,25 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
             <div style={{ height: 10 }} />
           </>
         )}
+
+        <button
+          type="button"
+          className="camera-button"
+          onClick={saveToOneDrive}
+          disabled={oneDriveSaving}
+          style={{ width: "100%" }}
+        >
+          {oneDriveSaving ? "Uploading…" : "Save to OneDrive"}
+        </button>
+        <p className="muted" style={{ marginTop: 8 }}>
+          Uploads every photo in this project to primecoreps' OneDrive. You choose when this runs -- it's not automatic.
+        </p>
+        {oneDriveStatus && (
+          <div className={`status-text ${oneDriveStatus.startsWith("Uploaded") ? "status-ok" : "error-text"}`}>
+            {oneDriveStatus}
+          </div>
+        )}
+        <div style={{ height: 10 }} />
 
         <a className="secondary-button" href={`/api/projects/${id}/zip`}>
           Download full project (ZIP)

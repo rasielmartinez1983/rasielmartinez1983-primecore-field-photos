@@ -4,3 +4,7 @@ node_modules
 *.db
 *.db-journal
 tsconfig.tsbuildinfo
+
+# Local "save to folder on this computer" photo export destination --
+# actual project photos, not source code.
+AMPS/

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, use as usePromise } from "react";
 import HeaderBgStrip from "@/components/HeaderBgStrip";
 import ManualCropBox from "@/components/ManualCropBox";
+import OneDriveImportModal from "@/components/OneDriveImportModal";
 
 type Folder = {
   id: string;
@@ -76,6 +77,9 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showOneDrive, setShowOneDrive] = useState(false);
+  const [oneDriveSaving, setOneDriveSaving] = useState(false);
+  const [oneDriveStatus, setOneDriveStatus] = useState("");
 
   // Subfolder create/rename state
   const [addingSub, setAddingSub] = useState(false);
@@ -128,6 +132,14 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     setBatchTotal(resized.length);
     setPhase("");
     setStatus(null);
+  }
+
+  // Same entry point as onFilePicked, just fed from OneDrive instead of the
+  // camera/file input -- one imported photo joins the crop queue immediately
+  // so it goes through the exact same crop -> phase -> save review step.
+  function onOneDriveImport(dataUrl: string) {
+    setCropQueue((q) => [...q, dataUrl]);
+    setBatchTotal((t) => t + 1);
   }
 
   // Pulls the next raw photo into the crop tool once there's nothing left
@@ -205,6 +217,34 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     setPhase("");
     setBatchTotal(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  // Manual "Save to OneDrive" for just this folder -- not automatic, same
+  // as the project-level one on the project page.
+  async function saveFolderToOneDrive() {
+    setOneDriveSaving(true);
+    setOneDriveStatus("Uploading to OneDrive…");
+    try {
+      const res = await fetch("/api/onedrive/backup-folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOneDriveStatus(data.error || "Could not upload to OneDrive.");
+        return;
+      }
+      setOneDriveStatus(
+        data.failed > 0
+          ? `Uploaded ${data.uploaded}, ${data.failed} failed${data.lastError ? `: ${data.lastError}` : ""}`
+          : `Uploaded ${data.uploaded} photo${data.uploaded === 1 ? "" : "s"} to OneDrive.`
+      );
+    } catch {
+      setOneDriveStatus("Could not connect. Try again.");
+    } finally {
+      setOneDriveSaving(false);
+    }
   }
 
   async function deletePhoto(photoId: string) {
@@ -428,9 +468,17 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               <label htmlFor="camera-input" className="camera-button" style={{ display: "block" }}>
                 📷 Take photo(s)
               </label>
-              <p className="muted" style={{ marginBottom: 0, marginTop: 8 }}>
+              <p className="muted" style={{ marginBottom: 8, marginTop: 8 }}>
                 You can select or take several at once.
               </p>
+              <button
+                type="button"
+                className="secondary-button"
+                style={{ width: "100%" }}
+                onClick={() => setShowOneDrive(true)}
+              >
+                📁 Import from OneDrive
+              </button>
             </>
           )}
           {status && (
@@ -566,6 +614,26 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
           )}
         </div>
 
+        {photos && photos.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="secondary-button"
+              style={{ width: "100%" }}
+              onClick={saveFolderToOneDrive}
+              disabled={oneDriveSaving}
+            >
+              {oneDriveSaving ? "Uploading…" : "Save to OneDrive"}
+            </button>
+            {oneDriveStatus && (
+              <div className={`status-text ${oneDriveStatus.startsWith("Uploaded") ? "status-ok" : "error-text"}`}>
+                {oneDriveStatus}
+              </div>
+            )}
+            <div style={{ height: 10 }} />
+          </>
+        )}
+
         {renamingPhotoId && (
           <div className="capture-card">
             <label className="field-label" htmlFor="renamePhotoInput">
@@ -637,6 +705,13 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               </div>
             ))}
           </div>
+        )}
+
+        {showOneDrive && (
+          <OneDriveImportModal
+            onImport={onOneDriveImport}
+            onClose={() => setShowOneDrive(false)}
+          />
         )}
       </main>
     </>
