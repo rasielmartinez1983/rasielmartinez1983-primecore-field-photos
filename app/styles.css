@@ -498,6 +498,59 @@ input[type="date"] {
   margin: -6px 0 12px;
 }
 
+/* ===== "Choose from ExcelApp" name picker (rename + add-folder flows) ===== */
+.amp-picker-btn {
+  display: inline-block;
+  padding: 8px 14px;
+  background: #fff;
+  color: #101828;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.amp-picker-btn:disabled {
+  color: #98a2b3;
+}
+
+.amp-picker-list {
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  background: #fff;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: -4px 0 14px;
+}
+
+.amp-picker-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f2f4f7;
+  font-size: 14px;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+}
+
+.amp-picker-item:last-child {
+  border-bottom: none;
+}
+
+.amp-picker-item:hover {
+  background: #f8f9fb;
+}
+
+.amp-picker-empty {
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #667085;
+}
+
 /* ===== Gallery ===== */
 .gallery-header {
   display: flex;

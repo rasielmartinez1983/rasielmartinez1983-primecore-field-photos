@@ -6,6 +6,35 @@ import HeaderBgStrip from "@/components/HeaderBgStrip";
 type Folder = { id: string; name: string; area: string; photoCount: number };
 type Project = { id: string; name: string; substationName: string };
 
+// Defined at module scope (not inside AreaPage) so it isn't recreated as a
+// new component identity on every render -- that would make React remount
+// the list instead of just re-rendering it.
+function AmpPickerList({
+  names,
+  loading,
+  onPick,
+}: {
+  names: string[] | null;
+  loading: boolean;
+  onPick: (name: string) => void;
+}) {
+  if (loading) {
+    return <div className="amp-picker-list"><div className="amp-picker-empty">Loading names from ExcelApp…</div></div>;
+  }
+  if (!names || names.length === 0) {
+    return <div className="amp-picker-list"><div className="amp-picker-empty">No names found in ExcelApp for this project yet.</div></div>;
+  }
+  return (
+    <div className="amp-picker-list">
+      {names.map((name) => (
+        <button key={name} type="button" className="amp-picker-item" onClick={() => onPick(name)}>
+          {name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function AreaPage({ params }: { params: Promise<{ id: string; area: string }> }) {
   const { id, area } = usePromise(params);
 
@@ -22,6 +51,15 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState("");
+  // Names ExcelApp already has for this same project (matched by project
+  // name -- see /api/excelapp-labels), offered as a "pick instead of
+  // retype" list so a folder here ends up spelled exactly like the card
+  // it needs to match for the AMP photo importer. Fetched once and reused
+  // for both the rename picker and the add-folder picker; `null` means
+  // "not fetched yet", not "fetched and empty".
+  const [ampNames, setAmpNames] = useState<string[] | null>(null);
+  const [ampNamesLoading, setAmpNamesLoading] = useState(false);
+  const [ampPickerFor, setAmpPickerFor] = useState<"rename" | "add" | null>(null);
 
   function loadFolders() {
     fetch(`/api/folders?projectId=${id}&area=${area}`)
@@ -74,14 +112,45 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
     });
   }
 
-  function addCustomToList() {
-    const name = customDraft.trim();
-    if (!name) return;
-    if (!options.some((o) => o.toLowerCase() === name.toLowerCase())) {
-      setExtraOptions((prev) => [...prev, name]);
+  function addNameToList(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    if (!options.some((o) => o.toLowerCase() === trimmed.toLowerCase())) {
+      setExtraOptions((prev) => [...prev, trimmed]);
     }
-    setSelected((prev) => new Map(prev).set(name, name));
+    setSelected((prev) => new Map(prev).set(trimmed, trimmed));
+  }
+
+  function addCustomToList() {
+    addNameToList(customDraft);
     setCustomDraft("");
+  }
+
+  // Loads ExcelApp's names for this project on first use, then just
+  // toggles the picker list open/closed on later clicks -- no need to
+  // refetch every time it's opened during one visit to this page.
+  async function openAmpPicker(target: "rename" | "add") {
+    if (ampPickerFor === target) {
+      setAmpPickerFor(null);
+      return;
+    }
+    setAmpPickerFor(target);
+    if (ampNames !== null || !project?.name) return;
+    setAmpNamesLoading(true);
+    try {
+      const res = await fetch(`/api/excelapp-labels?project=${encodeURIComponent(project.name)}`);
+      const data = await res.json();
+      setAmpNames(Array.isArray(data.names) ? data.names : []);
+    } catch {
+      setAmpNames([]);
+    } finally {
+      setAmpNamesLoading(false);
+    }
+  }
+
+  function pickAmpName(name: string, apply: (name: string) => void) {
+    apply(name);
+    setAmpPickerFor(null);
   }
 
   function startRename(f: Folder) {
@@ -221,6 +290,21 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
               onChange={(e) => setRenameValue(e.target.value)}
               autoFocus
             />
+            <button
+              type="button"
+              className="amp-picker-btn"
+              onClick={() => openAmpPicker("rename")}
+              disabled={!project?.name}
+            >
+              📋 Choose from ExcelApp {ampPickerFor === "rename" ? "▴" : "▾"}
+            </button>
+            {ampPickerFor === "rename" && (
+              <AmpPickerList
+                names={ampNames}
+                loading={ampNamesLoading}
+                onPick={(name) => pickAmpName(name, setRenameValue)}
+              />
+            )}
             {renameError && <div className="error-text">{renameError}</div>}
             <button className="camera-button" onClick={saveRename} disabled={busy || !renameValue.trim()}>
               {busy ? "Saving…" : "Save name"}
@@ -303,6 +387,23 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
                 Add
               </button>
             </div>
+
+            <button
+              type="button"
+              className="amp-picker-btn"
+              style={{ marginTop: 10 }}
+              onClick={() => openAmpPicker("add")}
+              disabled={!project?.name}
+            >
+              📋 Choose from ExcelApp {ampPickerFor === "add" ? "▴" : "▾"}
+            </button>
+            {ampPickerFor === "add" && (
+              <AmpPickerList
+                names={ampNames}
+                loading={ampNamesLoading}
+                onPick={(name) => pickAmpName(name, addNameToList)}
+              />
+            )}
 
             {error && <div className="error-text" style={{ marginTop: 14 }}>{error}</div>}
 
