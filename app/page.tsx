@@ -49,6 +49,16 @@ export default function HomePage() {
         setMe(data.user);
       })
       .catch(() => setMe(null));
+
+    // Projects can be deleted from ops.primecore (see /api/internal/delete-
+    // project) while this tab sits open in the background -- re-fetch the
+    // list whenever the tab comes back into view, so a project removed
+    // elsewhere disappears here without needing a manual page reload.
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") loadProjects();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
   async function handleLogout() {
