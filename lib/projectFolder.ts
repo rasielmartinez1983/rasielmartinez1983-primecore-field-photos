@@ -2,7 +2,7 @@
 // Photos project, so "Save to OneDrive" here lands inside the same
 // project folder ops.primecore already created (see
 // primecore-ops-local/lib/projectFolder.ts -- the folder structure is
-// "Projectos <year>/<Project#>_<Client>_<Name>_<Date>/AMPS/...").
+// "Projectos <year>/<Project#>_<Client>_<Substation>_<Name>_<Date>/AMPS/...").
 //
 // Field Photos has its own database, separate from ops.primecore -- there
 // is no shared project id or number to join on. Instead, the user names
@@ -48,11 +48,19 @@ export async function findProjectFolderPath(name: string): Promise<string | null
       if (!child.isFolder) continue;
       const folderName = child.name.trim();
 
-      // New format: "<Project#>_<Client>_<Name>_<Date>" -- exactly 4
-      // underscore-delimited segments (each segment has its own
-      // underscores stripped when the folder is created, so a real match
-      // always has exactly 4 parts). The Name is the 3rd segment.
+      // Current format: "<Project#>_<Client>_<Substation>_<Name>_<Date>"
+      // -- exactly 5 underscore-delimited segments (each segment has its
+      // own underscores stripped when the folder is created, so a real
+      // match always has exactly 5 parts). The Name is the 4th segment.
+      //
+      // Previous format: "<Project#>_<Client>_<Name>_<Date>" -- 4
+      // segments, Name is the 3rd. Folders created before Substation was
+      // added are NOT renamed in OneDrive, so both are still matched.
       const parts = folderName.split("_");
+      if (parts.length === 5 && parts[3].trim().toLowerCase() === target) {
+        candidates.push({ path: `${yearFolder.name}/${folderName}`, folder: folderName, exact: true });
+        continue;
+      }
       if (parts.length === 4 && parts[2].trim().toLowerCase() === target) {
         candidates.push({ path: `${yearFolder.name}/${folderName}`, folder: folderName, exact: true });
         continue;
