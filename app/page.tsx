@@ -12,7 +12,7 @@ type Project = {
   folderCount: number;
 };
 
-type Me = { id: string; username: string; name: string | null } | null;
+type Me = { id: string; username: string; name: string | null; isAdmin: boolean } | null;
 
 export default function HomePage() {
   const [projects, setProjects] = useState<Project[] | null>(null);
@@ -113,6 +113,9 @@ export default function HomePage() {
             <div className="app-header-user">
               <span>{me.name || me.username}</span>
               <a href="/settings/face-id" className="app-header-user-link">Set up Face ID</a>
+              {me.isAdmin && (
+                <a href="/admin" className="app-header-user-link">Admin</a>
+              )}
               <a
                 href="#"
                 className="app-header-user-link"

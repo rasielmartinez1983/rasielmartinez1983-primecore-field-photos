@@ -676,3 +676,71 @@ input[type="date"] {
   overflow-y: auto;
   z-index: 100;
 }
+
+/* /admin page (workers + access codes) */
+
+.admin-section-title {
+  font-size: 16px;
+  margin: 28px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eaecf0;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 8px;
+  border-bottom: 1px solid #eaecf0;
+  vertical-align: middle;
+}
+
+.admin-table th {
+  color: #667085;
+  font-weight: 600;
+}
+
+.admin-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-badge-active {
+  background: #eef2ff;
+  color: #3538cd;
+}
+
+.admin-badge-inactive {
+  background: #f2f4f7;
+  color: #667085;
+}
+
+.admin-badge-admin {
+  background: #101828;
+  color: #fff;
+}
+
+.admin-badge-revoked {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.admin-btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+  width: auto;
+}
+
+.admin-code-value {
+  font-family: "Courier New", monospace;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
