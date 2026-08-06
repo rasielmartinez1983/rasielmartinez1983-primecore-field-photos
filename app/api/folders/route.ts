@@ -1,6 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Each folder's displayed photo count is its own photos PLUS every photo
+// in every subfolder nested inside it, however deep -- e.g. As Built
+// Drawings' count includes a scan that got auto-filed into a "PG-213"
+// subfolder created inside it (see the group-code save flow), not just
+// photos saved directly at that level. Scoped strictly to one project +
+// area's own folder tree, so Yard's total never touches House's or As
+// Built Drawings' -- each area only ever counts what's inside itself.
+async function computeRecursivePhotoCounts(projectId: string, area: string): Promise<Map<string, number>> {
+  const allFolders = await prisma.folder.findMany({
+    where: { projectId, area },
+    select: { id: true, parentId: true, _count: { select: { photos: true } } },
+  });
+  const byId = new Map(allFolders.map((f) => [f.id, f]));
+  const totals = new Map<string, number>();
+  for (const f of allFolders) totals.set(f.id, f._count.photos);
+  // Walk each folder's own photo count up through every ancestor (parent,
+  // grandparent, ...) so a folder's total includes all of its descendants,
+  // not just its direct children.
+  for (const f of allFolders) {
+    let parentId = f.parentId;
+    while (parentId) {
+      totals.set(parentId, (totals.get(parentId) || 0) + f._count.photos);
+      parentId = byId.get(parentId)?.parentId ?? null;
+    }
+  }
+  return totals;
+}
+
 export async function GET(req: NextRequest) {
   const projectId = req.nextUrl.searchParams.get("projectId");
   const area = req.nextUrl.searchParams.get("area");
@@ -13,12 +41,16 @@ export async function GET(req: NextRequest) {
       orderBy: { name: "asc" },
       include: { _count: { select: { photos: true, children: true } } },
     });
+    // All subfolders under the same parent share the same project + area,
+    // so any one of them (if there are any) tells us which tree to total.
+    const totals =
+      folders.length > 0 ? await computeRecursivePhotoCounts(folders[0].projectId, folders[0].area) : new Map();
     return NextResponse.json(
       folders.map((f) => ({
         id: f.id,
         name: f.name,
         area: f.area,
-        photoCount: f._count.photos,
+        photoCount: totals.get(f.id) ?? f._count.photos,
         subfolderCount: f._count.children,
       }))
     );
@@ -35,13 +67,14 @@ export async function GET(req: NextRequest) {
     orderBy: { name: "asc" },
     include: { _count: { select: { photos: true, children: true } } },
   });
+  const totals = await computeRecursivePhotoCounts(projectId, area);
 
   return NextResponse.json(
     folders.map((f) => ({
       id: f.id,
       name: f.name,
       area: f.area,
-      photoCount: f._count.photos,
+      photoCount: totals.get(f.id) ?? f._count.photos,
       subfolderCount: f._count.children,
     }))
   );
