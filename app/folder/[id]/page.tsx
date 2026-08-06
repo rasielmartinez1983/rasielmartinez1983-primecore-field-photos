@@ -75,8 +75,17 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   // untrimmed photo instead of re-cropping an already-cropped image.
   const [cropQueue, setCropQueue] = useState<string[]>([]);
   const [cropping, setCropping] = useState<string | null>(null);
-  // Queue of pending photos from the current batch (front = the one being reviewed now).
-  const [queue, setQueue] = useState<{ original: string; cropped: string }[]>([]);
+  // As Built Drawings only: after the normal photo crop, there's a second
+  // selection step where the person boxes in just the title block (number
+  // + sheet + description) so the OCR guess reads that instead of the
+  // whole photo. `full` is the already-cropped photo that will actually
+  // be saved as the PDF; the box drawn here never touches that image, it
+  // only produces the smaller image sent for OCR.
+  const [titleBlockCropping, setTitleBlockCropping] = useState<{ original: string; full: string } | null>(null);
+  // Queue of pending photos from the current batch (front = the one being
+  // reviewed now). titleBlockCrop is only set for As Built Drawings and is
+  // used for OCR only -- `cropped` (the full photo) is what gets saved.
+  const [queue, setQueue] = useState<{ original: string; cropped: string; titleBlockCrop?: string }[]>([]);
   const [batchTotal, setBatchTotal] = useState(0);
   const [busy, setBusy] = useState(false);
   // As Built Drawings only: the drawing name for the photo currently under
@@ -169,11 +178,13 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   // As Built Drawings only: the moment a photo reaches the review step,
   // OCR it and pre-fill drawingName with the guessed drawing number --
   // still just a starting point, the person can edit or clear it before
-  // saving. Keyed off the actual image data (not just "a photo is up")
-  // so re-cropping the same photo re-runs detection against the new crop.
+  // saving. Uses the focused title-block crop when there is one (much
+  // cleaner OCR input than the whole photo), falling back to the full
+  // photo if the title-block step was skipped. Keyed off the actual image
+  // data (not just "a photo is up") so re-cropping re-runs detection.
   useEffect(() => {
     if (!isDrawingArea) return;
-    const image = queue[0]?.cropped;
+    const image = queue[0]?.titleBlockCrop || queue[0]?.cropped;
     if (!image) return;
     let cancelled = false;
     setDetectingDrawingName(true);
@@ -195,16 +206,54 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDrawingArea, queue[0]?.cropped]);
+  }, [isDrawingArea, queue[0]?.titleBlockCrop, queue[0]?.cropped]);
 
+  // As Built Drawings: the normal photo crop feeds into a second step
+  // (titleBlockCropping) instead of going straight to the review queue,
+  // so the person can box in just the title block next. Every other area
+  // skips straight to the queue like before.
   function onCropConfirmed(croppedDataUrl: string) {
-    if (cropping) setQueue((q) => [...q, { original: cropping, cropped: croppedDataUrl }]);
+    if (!cropping) {
+      setCropping(null);
+      return;
+    }
+    if (isDrawingArea) {
+      setTitleBlockCropping({ original: cropping, full: croppedDataUrl });
+    } else {
+      setQueue((q) => [...q, { original: cropping, cropped: croppedDataUrl }]);
+    }
     setCropping(null);
   }
 
   function onCropSkipped() {
-    if (cropping) setQueue((q) => [...q, { original: cropping, cropped: cropping }]);
+    if (!cropping) {
+      setCropping(null);
+      return;
+    }
+    if (isDrawingArea) {
+      setTitleBlockCropping({ original: cropping, full: cropping });
+    } else {
+      setQueue((q) => [...q, { original: cropping, cropped: cropping }]);
+    }
     setCropping(null);
+  }
+
+  // Second crop step, As Built Drawings only: the box drawn here only
+  // produces the image sent for OCR -- `full` (the already-cropped photo)
+  // is what actually lands in the queue as `cropped` and gets saved.
+  function onTitleBlockConfirmed(titleBlockDataUrl: string) {
+    if (!titleBlockCropping) return;
+    setQueue((q) => [
+      ...q,
+      { original: titleBlockCropping.original, cropped: titleBlockCropping.full, titleBlockCrop: titleBlockDataUrl },
+    ]);
+    setTitleBlockCropping(null);
+  }
+
+  function onTitleBlockSkipped() {
+    if (!titleBlockCropping) return;
+    setQueue((q) => [...q, { original: titleBlockCropping.original, cropped: titleBlockCropping.full }]);
+    setTitleBlockCropping(null);
   }
 
   // Reopens the crop tool on this photo's original, untrimmed version, in
@@ -214,6 +263,15 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     const current = queue[0];
     if (!current) return;
     setCropping(current.original);
+    setQueue((q) => q.slice(1));
+  }
+
+  // As Built Drawings only: redo just the title-block box selection
+  // without re-cropping the whole photo again.
+  function redoTitleBlockCrop() {
+    const current = queue[0];
+    if (!current) return;
+    setTitleBlockCropping({ original: current.original, full: current.cropped });
     setQueue((q) => q.slice(1));
   }
 
@@ -264,6 +322,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     setQueue([]);
     setCropQueue([]);
     setCropping(null);
+    setTitleBlockCropping(null);
     setPhase("");
     setDrawingName("");
     setBatchTotal(0);
@@ -408,7 +467,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
       : `/project/${folder.projectId}/${encodeURIComponent(folder.area)}`
     : "/";
   const current = queue[0];
-  const totalRemainingInBatch = cropQueue.length + (cropping ? 1 : 0) + queue.length;
+  const totalRemainingInBatch =
+    cropQueue.length + (cropping ? 1 : 0) + (titleBlockCropping ? 1 : 0) + queue.length;
   const doneInBatch = batchTotal - totalRemainingInBatch;
 
   return (
@@ -440,6 +500,25 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                 </p>
               )}
               <ManualCropBox src={cropping} onConfirm={onCropConfirmed} onSkip={onCropSkipped} />
+            </>
+          ) : titleBlockCropping ? (
+            <>
+              {batchTotal > 1 && (
+                <p className="muted" style={{ marginTop: 0 }}>
+                  Photo {doneInBatch + 1} of {batchTotal}
+                </p>
+              )}
+              <p className="field-label" style={{ marginBottom: 8 }}>
+                Now box in just the title block
+              </p>
+              <ManualCropBox
+                src={titleBlockCropping.full}
+                onConfirm={onTitleBlockConfirmed}
+                onSkip={onTitleBlockSkipped}
+                instructions="Draw a box around just the number, sheet, and description in the title block -- this is only used to read the name, the full photo is still what gets saved."
+                confirmLabel="Use this area"
+                skipLabel="Skip -- scan the whole photo"
+              />
             </>
           ) : current ? (
             <>
@@ -508,6 +587,20 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               >
                 Adjust crop
               </button>
+              {isDrawingArea && (
+                <>
+                  <div style={{ height: 10 }} />
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={redoTitleBlockCrop}
+                    disabled={busy}
+                    style={{ width: "100%" }}
+                  >
+                    Adjust drawing area (for scan)
+                  </button>
+                </>
+              )}
               <div style={{ height: 10 }} />
               <button
                 type="button"

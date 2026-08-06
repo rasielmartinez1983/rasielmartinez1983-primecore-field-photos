@@ -14,10 +14,19 @@ export default function ManualCropBox({
   src,
   onConfirm,
   onSkip,
+  instructions = "Drag the yellow corners to trim the edges, or drag the middle to move the box.",
+  confirmLabel = "Crop photo",
+  skipLabel = "Skip crop (use full photo)",
 }: {
   src: string;
   onConfirm: (croppedDataUrl: string) => void;
   onSkip: () => void;
+  // Reused for the As Built Drawings title-block selector step (see
+  // app/folder/[id]/page.tsx), which needs different copy than the
+  // default photo-trim step -- both share the same drag/resize box.
+  instructions?: string;
+  confirmLabel?: string;
+  skipLabel?: string;
 }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [displaySize, setDisplaySize] = useState({ w: 0, h: 0 });
@@ -150,14 +159,14 @@ export default function ManualCropBox({
         )}
       </div>
       <p className="muted" style={{ marginTop: 8, marginBottom: 12 }}>
-        Drag the yellow corners to trim the edges, or drag the middle to move the box.
+        {instructions}
       </p>
       <button type="button" className="camera-button" onClick={confirm}>
-        Crop photo
+        {confirmLabel}
       </button>
       <div style={{ height: 10 }} />
       <button type="button" className="secondary-button" onClick={onSkip} style={{ width: "100%" }}>
-        Skip crop (use full photo)
+        {skipLabel}
       </button>
     </div>
   );
