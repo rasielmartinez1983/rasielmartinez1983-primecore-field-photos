@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, use as usePromise } from "react";
 import HeaderBgStrip from "@/components/HeaderBgStrip";
 import ManualCropBox from "@/components/ManualCropBox";
 import OneDriveImportModal from "@/components/OneDriveImportModal";
+import { areaLabel } from "@/lib/areaLabel";
 
 type Folder = {
   id: string;
@@ -530,8 +531,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
         <p className="muted">
           {folder
             ? folder.parent
-              ? `${folder.project.substationName} — ${folder.area} — ${folder.parent.name}`
-              : `${folder.project.substationName} — ${folder.area}`
+              ? `${folder.project.substationName} — ${areaLabel(folder.area)} — ${folder.parent.name}`
+              : `${folder.project.substationName} — ${areaLabel(folder.area)}`
             : ""}
         </p>
 

@@ -46,9 +46,16 @@ export async function POST(req: NextRequest) {
       substationName,
       client,
       date,
-      // Same default sites every project gets when created normally
-      // through the UI (see app/api/projects/route.ts).
+      // Same default sites + As Built Drawings subfolders every project
+      // gets when created normally through the UI (see
+      // app/api/projects/route.ts).
       areas: { create: [{ name: "Yard" }, { name: "House" }, { name: "As Built Drawings" }] },
+      folders: {
+        create: [
+          { area: "As Built Drawings", name: "As Built Drawings" },
+          { area: "As Built Drawings", name: "Highlighted Drawings" },
+        ],
+      },
     },
   });
   return NextResponse.json(project, { status: 201 });

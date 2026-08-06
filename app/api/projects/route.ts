@@ -49,8 +49,23 @@ export async function POST(req: NextRequest) {
       // re-added later via "+ Add site") on a per-project basis. "As Built
       // Drawings" is handled the same way as Yard/House everywhere in this
       // app except how a photo captured inside it gets saved -- see
-      // app/api/photos/route.ts.
+      // app/api/photos/route.ts. Shown to the user as "As Built /
+      // Highlighted Drawings" (see lib/areaLabel.ts) -- the area string
+      // itself stays "As Built Drawings" everywhere it's actually matched
+      // on, only the on-screen label changed.
       areas: { create: [{ name: "Yard" }, { name: "House" }, { name: "As Built Drawings" }] },
+      // As Built Drawings starts with two default subfolders instead of
+      // empty -- "As Built Drawings" for regular as-built scans and
+      // "Highlighted Drawings" for marked-up ones. Both are ordinary
+      // top-level folders (inherit area from their parent's area string,
+      // same as any folder created by hand), so the crop/OCR/PDF/OneDrive
+      // flow works inside them exactly like it does at the area root.
+      folders: {
+        create: [
+          { area: "As Built Drawings", name: "As Built Drawings" },
+          { area: "As Built Drawings", name: "Highlighted Drawings" },
+        ],
+      },
     },
   });
   return NextResponse.json(project);

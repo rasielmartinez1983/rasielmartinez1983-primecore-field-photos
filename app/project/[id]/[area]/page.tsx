@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use as usePromise } from "react";
 import HeaderBgStrip from "@/components/HeaderBgStrip";
+import { areaLabel } from "@/lib/areaLabel";
 
 type Folder = { id: string; name: string; area: string; photoCount: number };
 type Project = { id: string; name: string; substationName: string };
@@ -91,7 +92,7 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
         return;
       }
       if (data.uploaded === 0 && data.failed === 0) {
-        setOneDriveStatus(data.lastError || `${area} doesn't have any photos yet.`);
+        setOneDriveStatus(data.lastError || `${areaLabel(area)} doesn't have any photos yet.`);
         return;
       }
       setOneDriveStatus(
@@ -279,12 +280,12 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
         <div className="app-header-spacer" />
       </header>
       <main>
-        <h1>{area}</h1>
+        <h1>{areaLabel(area)}</h1>
         <p className="muted">Choose an equipment folder, or add new ones.</p>
 
         {folders === null && <p className="muted">Loading…</p>}
         {folders && folders.length === 0 && (
-          <div className="empty-state">No folders in {area} yet. Add some below.</div>
+          <div className="empty-state">No folders in {areaLabel(area)} yet. Add some below.</div>
         )}
         {folders && folders.length > 0 && (
           <div className="tile-grid">
@@ -333,11 +334,11 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
               onClick={saveAreaToOneDrive}
               disabled={oneDriveSaving}
             >
-              {oneDriveSaving ? "Uploading…" : `Save ${area} to OneDrive`}
+              {oneDriveSaving ? "Uploading…" : `Save ${areaLabel(area)} to OneDrive`}
             </button>
             <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-              Uploads just the photos in {area} -- use "Save to OneDrive" on the project page instead to upload
-              everything at once.
+              Uploads just the photos in {areaLabel(area)} -- use "Save to OneDrive" on the project page instead to
+              upload everything at once.
             </p>
             {oneDriveStatus && (
               <div className={`status-text ${oneDriveStatus.startsWith("Uploaded") ? "status-ok" : "error-text"}`}>

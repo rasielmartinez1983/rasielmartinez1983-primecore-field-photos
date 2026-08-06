@@ -3,6 +3,7 @@
 import { useEffect, useState, use as usePromise } from "react";
 import HeaderBgStrip from "@/components/HeaderBgStrip";
 import { saveDirHandle, loadDirHandle } from "@/lib/folderHandleStore";
+import { areaLabel } from "@/lib/areaLabel";
 
 type Project = {
   id: string;
@@ -235,7 +236,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 className="category-card"
                 style={{ position: "relative" }}
               >
-                <div className="category-card-label" style={{ paddingRight: 4 }}>{s.name}</div>
+                <div className="category-card-label" style={{ paddingRight: 4 }}>{areaLabel(s.name)}</div>
                 {s.name !== "Yard" && s.name !== "House" && s.name !== "As Built Drawings" && (
                   <span
                     role="button"
