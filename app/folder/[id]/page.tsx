@@ -19,6 +19,9 @@ type Photo = { id: string; description: string; phase: string | null; filename: 
 
 // Resizes/compresses a photo client-side before it's stored as a base64
 // data URL, so field photos from a phone camera don't bloat the database.
+// As Built Drawings uses a higher maxDim/quality than the default (see
+// call site) -- title-block text needs to stay legible when someone zooms
+// into the saved PDF later, which a nameplate reference photo doesn't need.
 function resizeImageFile(file: File, maxDim = 1600, quality = 0.8): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -135,7 +138,9 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   async function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
-    const resized = await Promise.all(files.map((f) => resizeImageFile(f)));
+    const resized = await Promise.all(
+      files.map((f) => (isDrawingArea ? resizeImageFile(f, 3000, 0.92) : resizeImageFile(f)))
+    );
     setCropQueue(resized);
     setBatchTotal(resized.length);
     setPhase("");
