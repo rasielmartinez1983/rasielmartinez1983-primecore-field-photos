@@ -500,7 +500,18 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                   Photo {doneInBatch + 1} of {batchTotal}
                 </p>
               )}
-              <ManualCropBox src={cropping} onConfirm={onCropConfirmed} onSkip={onCropSkipped} />
+              {isDrawingArea ? (
+                <QuadCropBox
+                  src={cropping}
+                  onConfirm={onCropConfirmed}
+                  onSkip={onCropSkipped}
+                  instructions="Drag each corner onto the edges of the drawing -- doesn't have to be square, it straightens automatically before it's saved as the PDF."
+                  confirmLabel="Straighten & continue"
+                  skipLabel="Skip (use full photo)"
+                />
+              ) : (
+                <ManualCropBox src={cropping} onConfirm={onCropConfirmed} onSkip={onCropSkipped} />
+              )}
             </>
           ) : titleBlockCropping ? (
             <>
