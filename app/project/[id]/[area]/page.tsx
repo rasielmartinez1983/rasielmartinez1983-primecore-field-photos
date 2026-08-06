@@ -68,6 +68,44 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
   const [ampNamesLoading, setAmpNamesLoading] = useState(false);
   const [ampPickerFor, setAmpPickerFor] = useState<"rename" | "add" | null>(null);
 
+  // Manual "Save to OneDrive" for just this site (Yard, House, As Built
+  // Drawings, or any custom site) -- same backup-project route the
+  // whole-project button on the project page uses, just scoped to this
+  // area so someone doesn't have to re-upload the entire project to push
+  // up a handful of new photos/scans here.
+  const [oneDriveSaving, setOneDriveSaving] = useState(false);
+  const [oneDriveStatus, setOneDriveStatus] = useState("");
+
+  async function saveAreaToOneDrive() {
+    setOneDriveSaving(true);
+    setOneDriveStatus("Uploading to OneDrive…");
+    try {
+      const res = await fetch("/api/onedrive/backup-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: id, area }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOneDriveStatus(data.error || "Could not upload to OneDrive.");
+        return;
+      }
+      if (data.uploaded === 0 && data.failed === 0) {
+        setOneDriveStatus(data.lastError || `${area} doesn't have any photos yet.`);
+        return;
+      }
+      setOneDriveStatus(
+        data.failed > 0
+          ? `Uploaded ${data.uploaded}, ${data.failed} failed${data.lastError ? `: ${data.lastError}` : ""}`
+          : `Uploaded ${data.uploaded} photo${data.uploaded === 1 ? "" : "s"} to OneDrive.`
+      );
+    } catch {
+      setOneDriveStatus("Could not connect. Try again.");
+    } finally {
+      setOneDriveSaving(false);
+    }
+  }
+
   function loadFolders() {
     fetch(`/api/folders?projectId=${id}&area=${area}`)
       .then((r) => r.json())
@@ -283,6 +321,30 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
               </a>
             ))}
           </div>
+        )}
+
+        {folders && folders.length > 0 && (
+          <>
+            <div style={{ height: 14 }} />
+            <button
+              type="button"
+              className="secondary-button"
+              style={{ width: "100%" }}
+              onClick={saveAreaToOneDrive}
+              disabled={oneDriveSaving}
+            >
+              {oneDriveSaving ? "Uploading…" : `Save ${area} to OneDrive`}
+            </button>
+            <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
+              Uploads just the photos in {area} -- use "Save to OneDrive" on the project page instead to upload
+              everything at once.
+            </p>
+            {oneDriveStatus && (
+              <div className={`status-text ${oneDriveStatus.startsWith("Uploaded") ? "status-ok" : "error-text"}`}>
+                {oneDriveStatus}
+              </div>
+            )}
+          </>
         )}
 
         {renamingId && (

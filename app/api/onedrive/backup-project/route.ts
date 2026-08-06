@@ -6,10 +6,9 @@ import { findProjectFolderPath } from "@/lib/projectFolder";
 
 const AS_BUILT_AREA = "As Built Drawings";
 
-// Manual "Save to OneDrive" action (button on the project page) -- NOT
-// automatic. Uploads every photo in this project to OneDrive, the exact
-// same structure the "save to folder on this computer" button already
-// produces locally, split two ways:
+// Manual "Save to OneDrive" action -- NOT automatic. Uploads photos to
+// OneDrive, the exact same structure the "save to folder on this
+// computer" button already produces locally, split two ways:
 //   - Yard/House (and any other custom site): <project folder>/AMPS/<Area>/<Folder>/...
 //   - As Built Drawings: <project folder>/As Built Drawings/<Folder>/...
 //     (a sibling of AMPS, not nested inside it -- see lib/projectFolder.ts
@@ -18,12 +17,19 @@ const AS_BUILT_AREA = "As Built Drawings";
 // lib/projectFolder.ts) -- ops.primecore is the source of truth for where
 // each project's folder lives, since it auto-creates it on project
 // creation.
+// Called two ways: the project page's "Save to OneDrive" button uploads
+// the whole project (no 'area' in the body); each site page (Yard, House,
+// As Built Drawings, or any custom site) also has its own "Save to
+// OneDrive" button that passes its own area name here to upload just that
+// site's folders, so someone doesn't have to re-upload everything just to
+// push up a handful of new As Built Drawings scans.
 // Runs sequentially (one photo at a time) since these are small resized
 // JPEGs/PDFs (a few hundred KB) and this is a user-initiated action with a
 // progress-ish status message, not a background job.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const projectId = String(body.projectId || "");
+  const area = body.area ? String(body.area) : null;
   if (!projectId) {
     return NextResponse.json({ error: "Missing 'projectId'." }, { status: 400 });
   }
@@ -49,7 +55,7 @@ export async function POST(req: NextRequest) {
   // already points inside the matched project's own folder.
   const projectFolderName = sanitizeForPath(`${project.substationName} - ${project.name}`);
 
-  const folders = project.folders;
+  const folders = area ? project.folders.filter((f) => f.area === area) : project.folders;
   const foldersById = new Map(folders.map((f) => [f.id, f]));
   function folderPath(folder: (typeof folders)[number]): string {
     const parts = [sanitizeForPath(folder.name)];
