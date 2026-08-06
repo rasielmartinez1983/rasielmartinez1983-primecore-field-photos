@@ -36,7 +36,14 @@ function AmpPickerList({
 }
 
 export default function AreaPage({ params }: { params: Promise<{ id: string; area: string }> }) {
-  const { id, area } = usePromise(params);
+  const { id, area: rawArea } = usePromise(params);
+  // The project page links here with encodeURIComponent(site name) so
+  // names with spaces/special characters (e.g. "As Built Drawings") survive
+  // the URL -- but the route param comes through still encoded, not
+  // automatically decoded back. Every fetch/POST below needs the real
+  // name, not "As%20Built%20Drawings" literally, or folders get saved
+  // under the garbled encoded string and never show up again.
+  const area = decodeURIComponent(rawArea);
 
   const [project, setProject] = useState<Project | null>(null);
   const [folders, setFolders] = useState<Folder[] | null>(null);

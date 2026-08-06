@@ -400,7 +400,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const backHref = folder
     ? folder.parent
       ? `/folder/${folder.parent.id}`
-      : `/project/${folder.projectId}/${folder.area}`
+      : `/project/${folder.projectId}/${encodeURIComponent(folder.area)}`
     : "/";
   const current = queue[0];
   const totalRemainingInBatch = cropQueue.length + (cropping ? 1 : 0) + queue.length;
