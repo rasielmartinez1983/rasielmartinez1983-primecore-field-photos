@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, use as usePromise } from "react";
 import HeaderBgStrip from "@/components/HeaderBgStrip";
 import ManualCropBox from "@/components/ManualCropBox";
+import QuadCropBox from "@/components/QuadCropBox";
 import OneDriveImportModal from "@/components/OneDriveImportModal";
 
 type Folder = {
@@ -511,11 +512,11 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               <p className="field-label" style={{ marginBottom: 8 }}>
                 Now box in just the title block
               </p>
-              <ManualCropBox
+              <QuadCropBox
                 src={titleBlockCropping.full}
                 onConfirm={onTitleBlockConfirmed}
                 onSkip={onTitleBlockSkipped}
-                instructions="Draw a box around just the number, sheet, and description in the title block -- this is only used to read the name, the full photo is still what gets saved."
+                instructions="Drag each corner onto the number, sheet, and description in the title block -- doesn't have to be square, it straightens automatically. This is only used to read the name; the full photo is still what gets saved."
                 confirmLabel="Use this area"
                 skipLabel="Skip -- scan the whole photo"
               />
