@@ -4,6 +4,8 @@ import { sanitizeForPath } from "@/lib/filename";
 import { uploadFile } from "@/lib/msGraph";
 import { findProjectFolderPath } from "@/lib/projectFolder";
 
+const AS_BUILT_AREA = "As Built Drawings";
+
 // Manual "Save to OneDrive" for a single folder -- same idea as
 // backup-project, just scoped to one folder's own photos (flat, no
 // subfolders, matching /api/photos/zip's scope), for the "I'm working in
@@ -37,7 +39,9 @@ export async function POST(req: NextRequest) {
       lastError: `No matching project folder found in OneDrive for "${folder.project.name}". Make sure a project with this exact name exists in ops.primecore first.`,
     });
   }
-  const backupRoot = `${matchedFolder}/AMPS`;
+  // As Built Drawings is its own top-level folder, a sibling of AMPS, not
+  // nested inside it -- see backup-project's route for the full rationale.
+  const backupRoot = folder.area === AS_BUILT_AREA ? matchedFolder : `${matchedFolder}/AMPS`;
 
   // Matches backup-project's folderPath() -- Area/Folder/Subfolder as
   // separate path segments, same as the local "save to folder" export,
@@ -66,7 +70,8 @@ export async function POST(req: NextRequest) {
       const base64 = photo.dataUrl.split(",")[1] || "";
       const buffer = Buffer.from(base64, "base64");
       const onedrivePath = `${backupRoot}/${folderPath}/${name}`;
-      await uploadFile(onedrivePath, buffer, "image/jpeg");
+      const contentType = name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg";
+      await uploadFile(onedrivePath, buffer, contentType);
       uploaded++;
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);

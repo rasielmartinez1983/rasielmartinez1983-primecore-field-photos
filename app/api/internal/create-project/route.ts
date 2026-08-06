@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       date,
       // Same default sites every project gets when created normally
       // through the UI (see app/api/projects/route.ts).
-      areas: { create: [{ name: "Yard" }, { name: "House" }] },
+      areas: { create: [{ name: "Yard" }, { name: "House" }, { name: "As Built Drawings" }] },
     },
   });
   return NextResponse.json(project, { status: 201 });

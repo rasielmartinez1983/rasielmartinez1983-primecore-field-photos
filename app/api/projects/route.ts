@@ -44,10 +44,13 @@ export async function POST(req: NextRequest) {
       substationName,
       client,
       date,
-      // Every project starts with the two standard sites. They're regular
+      // Every project starts with the three standard sites. They're regular
       // ProjectArea rows like any custom site, so they can be deleted (and
-      // re-added later via "+ Add site") on a per-project basis.
-      areas: { create: [{ name: "Yard" }, { name: "House" }] },
+      // re-added later via "+ Add site") on a per-project basis. "As Built
+      // Drawings" is handled the same way as Yard/House everywhere in this
+      // app except how a photo captured inside it gets saved -- see
+      // app/api/photos/route.ts.
+      areas: { create: [{ name: "Yard" }, { name: "House" }, { name: "As Built Drawings" }] },
     },
   });
   return NextResponse.json(project);

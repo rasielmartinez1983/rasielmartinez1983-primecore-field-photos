@@ -59,6 +59,60 @@ async function getAccessToken(credentials: ServiceAccountCredentials): Promise<s
   return cachedToken.token;
 }
 
+// Runs DOCUMENT_TEXT_DETECTION (Vision's mode tuned for dense printed
+// text/documents, not scattered signage like plain TEXT_DETECTION) and
+// returns the full text it read off the page, top to bottom. Used by the
+// As Built Drawings scan flow (see lib/drawingName.ts) to guess a drawing
+// number/title from a photographed title block. Returns null if Vision
+// found no text, isn't configured, or the request failed -- callers treat
+// that the same as "couldn't guess a name" and fall back to letting the
+// person type one in.
+export async function extractFullText(base64Content: string): Promise<string | null> {
+  const credsRaw = process.env.GOOGLE_VISION_CREDENTIALS_JSON;
+  if (!credsRaw) return null;
+
+  let credentials: ServiceAccountCredentials;
+  try {
+    credentials = JSON.parse(credsRaw);
+  } catch {
+    return null;
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await getAccessToken(credentials);
+  } catch {
+    return null;
+  }
+
+  let visionRes: Response;
+  try {
+    visionRes = await fetch("https://vision.googleapis.com/v1/images:annotate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        requests: [
+          {
+            image: { content: base64Content },
+            features: [{ type: "DOCUMENT_TEXT_DETECTION" }],
+          },
+        ],
+      }),
+    });
+  } catch {
+    return null;
+  }
+
+  if (!visionRes.ok) return null;
+
+  const data = await visionRes.json();
+  const text: string = data.responses?.[0]?.fullTextAnnotation?.text || "";
+  return text || null;
+}
+
 export type BoundingBox = { x0: number; y0: number; x1: number; y1: number };
 
 // Runs TEXT_DETECTION and returns the bounding box of ALL text found in the

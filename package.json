@@ -17,6 +17,7 @@
     "@simplewebauthn/browser": "^10.0.0",
     "@simplewebauthn/server": "^10.0.0",
     "next": "15.3.8",
+    "pdf-lib": "^1.17.1",
     "prisma": "6.10.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

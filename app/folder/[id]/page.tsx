@@ -55,6 +55,7 @@ function resizeImageFile(file: File, maxDim = 1600, quality = 0.8): Promise<stri
 }
 
 const PHASES = ["", "A", "B", "C"];
+const AS_BUILT_AREA = "As Built Drawings";
 
 export default function FolderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = usePromise(params);
@@ -75,6 +76,11 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [queue, setQueue] = useState<{ original: string; cropped: string }[]>([]);
   const [batchTotal, setBatchTotal] = useState(0);
   const [busy, setBusy] = useState(false);
+  // As Built Drawings only: the drawing name for the photo currently under
+  // review -- pre-filled by OCR (detectDrawingName below) but always
+  // editable before saving, since the guess is a best effort.
+  const [drawingName, setDrawingName] = useState("");
+  const [detectingDrawingName, setDetectingDrawingName] = useState(false);
   const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showOneDrive, setShowOneDrive] = useState(false);
@@ -95,6 +101,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   const [renamePhotoValue, setRenamePhotoValue] = useState("");
   const [renamePhotoBusy, setRenamePhotoBusy] = useState(false);
   const [renamePhotoError, setRenamePhotoError] = useState("");
+
+  const isDrawingArea = folder?.area === AS_BUILT_AREA;
 
   function loadFolder() {
     fetch(`/api/folders/${id}`)
@@ -153,6 +161,37 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     }
   }, [cropping, queue.length, cropQueue]);
 
+  // As Built Drawings only: the moment a photo reaches the review step,
+  // OCR it and pre-fill drawingName with the guessed drawing number --
+  // still just a starting point, the person can edit or clear it before
+  // saving. Keyed off the actual image data (not just "a photo is up")
+  // so re-cropping the same photo re-runs detection against the new crop.
+  useEffect(() => {
+    if (!isDrawingArea) return;
+    const image = queue[0]?.cropped;
+    if (!image) return;
+    let cancelled = false;
+    setDetectingDrawingName(true);
+    setDrawingName("");
+    fetch("/api/photos/detect-drawing-name", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setDrawingName(data.guessedName || "");
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setDetectingDrawingName(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrawingArea, queue[0]?.cropped]);
+
   function onCropConfirmed(croppedDataUrl: string) {
     if (cropping) setQueue((q) => [...q, { original: cropping, cropped: croppedDataUrl }]);
     setCropping(null);
@@ -176,13 +215,18 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   async function saveCurrentPhoto() {
     const current = queue[0];
     if (!current) return;
+    if (isDrawingArea && !drawingName.trim()) return;
     setBusy(true);
     setStatus(null);
     try {
       const res = await fetch("/api/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folderId: id, phase: phase || null, dataUrl: current.cropped }),
+        body: JSON.stringify(
+          isDrawingArea
+            ? { folderId: id, name: drawingName.trim(), dataUrl: current.cropped }
+            : { folderId: id, phase: phase || null, dataUrl: current.cropped }
+        ),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -202,6 +246,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   function advanceQueue() {
     setQueue((q) => q.slice(1));
     setPhase("");
+    setDrawingName("");
     if (queue.length <= 1 && fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -215,6 +260,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     setCropQueue([]);
     setCropping(null);
     setPhase("");
+    setDrawingName("");
     setBatchTotal(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -255,8 +301,9 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
 
   function startRenamePhoto(p: Photo) {
     setRenamingPhotoId(p.id);
-    // Edit just the name, without the ".jpg" the field always keeps.
-    setRenamePhotoValue(p.filename.replace(/\.jpg$/i, ""));
+    // Edit just the name, without whatever extension the field always
+    // keeps (.jpg for Yard/House, .pdf for As Built Drawings).
+    setRenamePhotoValue(p.filename.replace(/\.[a-zA-Z0-9]+$/, ""));
     setRenamePhotoError("");
   }
 
@@ -397,26 +444,54 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                 </p>
               )}
               <img src={current.cropped} alt="preview" className="preview-thumb" />
-              <label className="field-label">Phase (optional)</label>
-              <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-                {PHASES.map((p) => (
-                  <button
-                    key={p || "none"}
-                    type="button"
-                    onClick={() => setPhase(p)}
-                    className="secondary-button"
-                    style={{
-                      flex: 1,
-                      background: phase === p ? "#101828" : "#fff",
-                      color: phase === p ? "#fff" : "#101828",
-                    }}
-                  >
-                    {p ? `${p} Phase` : "None"}
-                  </button>
-                ))}
-              </div>
-              <button className="camera-button" onClick={saveCurrentPhoto} disabled={busy}>
-                {busy ? "Saving…" : "Save photo"}
+              {isDrawingArea ? (
+                <>
+                  <label className="field-label" htmlFor="drawingNameInput">
+                    Drawing name
+                  </label>
+                  <input
+                    id="drawingNameInput"
+                    type="text"
+                    value={drawingName}
+                    onChange={(e) => setDrawingName(e.target.value)}
+                    placeholder={detectingDrawingName ? "Scanning…" : "e.g. E-101"}
+                    autoFocus
+                    style={{ marginBottom: 4 }}
+                  />
+                  <p className="muted" style={{ marginTop: 0, marginBottom: 14 }}>
+                    {detectingDrawingName
+                      ? "Reading the drawing number off the title block…"
+                      : "Pulled from the title block automatically -- check it and edit if needed."}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <label className="field-label">Phase (optional)</label>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+                    {PHASES.map((p) => (
+                      <button
+                        key={p || "none"}
+                        type="button"
+                        onClick={() => setPhase(p)}
+                        className="secondary-button"
+                        style={{
+                          flex: 1,
+                          background: phase === p ? "#101828" : "#fff",
+                          color: phase === p ? "#fff" : "#101828",
+                        }}
+                      >
+                        {p ? `${p} Phase` : "None"}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              <button
+                className="camera-button"
+                onClick={saveCurrentPhoto}
+                disabled={busy || (isDrawingArea && !drawingName.trim())}
+              >
+                {busy ? "Saving…" : isDrawingArea ? "Save as PDF" : "Save photo"}
               </button>
               <div style={{ height: 10 }} />
               <button
@@ -466,10 +541,12 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                 id="camera-input"
               />
               <label htmlFor="camera-input" className="camera-button" style={{ display: "block" }}>
-                📷 Take photo(s)
+                {isDrawingArea ? "📷 Scan drawing(s)" : "📷 Take photo(s)"}
               </label>
               <p className="muted" style={{ marginBottom: 8, marginTop: 8 }}>
-                You can select or take several at once.
+                {isDrawingArea
+                  ? "Each one is saved as a named PDF -- you'll confirm the name before it saves."
+                  : "You can select or take several at once."}
               </p>
               <button
                 type="button"
@@ -647,7 +724,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               autoFocus
             />
             <p className="muted" style={{ marginTop: -8, marginBottom: 14 }}>
-              ".jpg" is added automatically.
+              "{photos?.find((p) => p.id === renamingPhotoId)?.filename.match(/\.[a-zA-Z0-9]+$/)?.[0] || ".jpg"}" is
+              added automatically.
             </p>
             {renamePhotoError && <div className="error-text">{renamePhotoError}</div>}
             <button
@@ -676,7 +754,24 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
           <div className="gallery-grid">
             {photos.map((p) => (
               <div key={p.id} className="gallery-item">
-                <img src={p.dataUrl} alt={p.filename} />
+                {p.filename.toLowerCase().endsWith(".pdf") ? (
+                  <a
+                    href={p.dataUrl}
+                    download={p.filename}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "100%",
+                      fontSize: 40,
+                      textDecoration: "none",
+                    }}
+                  >
+                    📄
+                  </a>
+                ) : (
+                  <img src={p.dataUrl} alt={p.filename} />
+                )}
                 <div className="gallery-item-caption">{p.filename}</div>
                 <span
                   role="button"

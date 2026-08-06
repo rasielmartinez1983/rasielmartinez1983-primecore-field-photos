@@ -4,16 +4,22 @@ import { sanitizeForPath } from "@/lib/filename";
 import { uploadFile } from "@/lib/msGraph";
 import { findProjectFolderPath } from "@/lib/projectFolder";
 
+const AS_BUILT_AREA = "As Built Drawings";
+
 // Manual "Save to OneDrive" action (button on the project page) -- NOT
-// automatic. Uploads every photo in this project to OneDrive at
-// <matching ops.primecore project folder>/AMPS/<Area>/<Folder>/..., the
-// exact same structure the "save to folder on this computer" button
-// already produces locally. The destination project folder is found by
-// name (see lib/projectFolder.ts) -- ops.primecore is the source of
-// truth for where each project's folder lives, since it auto-creates it
-// on project creation.
+// automatic. Uploads every photo in this project to OneDrive, the exact
+// same structure the "save to folder on this computer" button already
+// produces locally, split two ways:
+//   - Yard/House (and any other custom site): <project folder>/AMPS/<Area>/<Folder>/...
+//   - As Built Drawings: <project folder>/As Built Drawings/<Folder>/...
+//     (a sibling of AMPS, not nested inside it -- see lib/projectFolder.ts
+//     in ops-local, which eagerly creates both as top-level subfolders).
+// The destination project folder is found by name (see
+// lib/projectFolder.ts) -- ops.primecore is the source of truth for where
+// each project's folder lives, since it auto-creates it on project
+// creation.
 // Runs sequentially (one photo at a time) since these are small resized
-// JPEGs (a few hundred KB) and this is a user-initiated action with a
+// JPEGs/PDFs (a few hundred KB) and this is a user-initiated action with a
 // progress-ish status message, not a background job.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -38,9 +44,8 @@ export async function POST(req: NextRequest) {
       lastError: `No matching project folder found in OneDrive for "${project.name}". Make sure a project with this exact name exists in ops.primecore first.`,
     });
   }
-  const backupRoot = `${matchedFolder}/AMPS`;
   // Kept only for the response payload (shown in the UI's status text) --
-  // no longer part of the actual upload path, since backupRoot above
+  // no longer part of the actual upload path, since matchedFolder above
   // already points inside the matched project's own folder.
   const projectFolderName = sanitizeForPath(`${project.substationName} - ${project.name}`);
 
@@ -79,8 +84,13 @@ export async function POST(req: NextRequest) {
       try {
         const base64 = photo.dataUrl.split(",")[1] || "";
         const buffer = Buffer.from(base64, "base64");
+        // As Built Drawings is its own top-level folder (relPath already
+        // starts with "As Built Drawings/..."); everything else nests
+        // under AMPS like it always has.
+        const backupRoot = folder.area === AS_BUILT_AREA ? matchedFolder : `${matchedFolder}/AMPS`;
         const onedrivePath = `${backupRoot}/${relPath}/${name}`;
-        await uploadFile(onedrivePath, buffer, "image/jpeg");
+        const contentType = name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg";
+        await uploadFile(onedrivePath, buffer, contentType);
         uploaded++;
       } catch (e) {
         // Surfaced in the response (not just the server console) so the
