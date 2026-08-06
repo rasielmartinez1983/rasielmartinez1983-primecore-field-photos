@@ -24,6 +24,17 @@ const NUMBER_CODE_PATTERN = /\b([A-Za-z]{1,4})[\s.\-]*(\d{2,7})\b/g;
 const SHEET_LABELED_PATTERN = /\bSH(?:EET)?\.?\s*(?:NO\.?|NUMBER|#)?\s*[:\-]?\s*(\d{1,3})\b/i;
 const SHEET_OF_PATTERN = /\b(\d{1,3})\s*OF\s*\d{1,3}\b/i;
 
+// The "group code" that sits alone on its own line directly above the
+// description block (e.g. "PG-213" over "RINGLING SUBSTATION / 138kV
+// STATION COMMON / ..."), used to auto-file the scan into a matching
+// subfolder inside As Built Drawings -- see guessGroupCode below. Unlike
+// the print number, this only matches a line that's JUST the code (short
+// prefix + dash + digits, nothing else on the line), since that's how it
+// actually appears in the title block, and it's what distinguishes it
+// from the print number/other reference codes that can appear inline
+// elsewhere in the block.
+const GROUP_CODE_PATTERN = /^([A-Z]{1,3}-\d{2,5})$/i;
+
 // Lines that are clearly title-block boilerplate, not the drawing's
 // description -- skipped when guessing the description line.
 const JUNK_LINE_PATTERN =
@@ -92,6 +103,25 @@ export function guessDescription(text: string, exclude: string[] = []): string |
     if (!best || line.length > best.length) best = line;
   }
   return best;
+}
+
+// The group/print-set code above the description (e.g. "PG-213",
+// "PL-2314", "S-2345") -- used to auto-file the scan into a matching
+// subfolder. Only looks at lines above the description (that's where it
+// physically sits in the title block), so it doesn't get confused with
+// the print number or other codes that can appear below/beside the
+// description instead.
+export function guessGroupCode(text: string): string | null {
+  if (!text) return null;
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const description = guessDescription(text);
+  const descIndex = description ? lines.indexOf(description) : -1;
+  const searchLines = descIndex >= 0 ? lines.slice(0, descIndex) : lines;
+  for (const line of searchLines) {
+    const m = line.match(GROUP_CODE_PATTERN);
+    if (m) return m[1].toUpperCase();
+  }
+  return null;
 }
 
 // Combines the three pieces into "{number} {SH-#} {description}", the

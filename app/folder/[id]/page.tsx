@@ -92,6 +92,13 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
   // review -- pre-filled by OCR (detectDrawingName below) but always
   // editable before saving, since the guess is a best effort.
   const [drawingName, setDrawingName] = useState("");
+  // As Built Drawings only: the group code above the description (e.g.
+  // "PG-213"), pre-filled by the same OCR call. If set at save time, the
+  // photo is filed into a same-named subfolder of the current folder
+  // (created if it doesn't exist yet) instead of saved directly here --
+  // see saveCurrentPhoto. Clearing it saves in the current folder as
+  // usual.
+  const [groupCode, setGroupCode] = useState("");
   const [detectingDrawingName, setDetectingDrawingName] = useState(false);
   const [status, setStatus] = useState<{ text: string; ok: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -189,6 +196,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     let cancelled = false;
     setDetectingDrawingName(true);
     setDrawingName("");
+    setGroupCode("");
     fetch("/api/photos/detect-drawing-name", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -196,7 +204,10 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     })
       .then((r) => r.json())
       .then((data) => {
-        if (!cancelled) setDrawingName(data.guessedName || "");
+        if (!cancelled) {
+          setDrawingName(data.guessedName || "");
+          setGroupCode(data.guessedGroup || "");
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -282,22 +293,53 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     setBusy(true);
     setStatus(null);
     try {
+      // As Built Drawings: if a group code is set (typed or from OCR),
+      // file this scan into a same-named subfolder of the current folder
+      // instead of saving it here directly. POST /api/folders already
+      // reuses an existing folder with that name or creates one, so this
+      // is safe to call every time without checking the subfolder list
+      // first.
+      let targetFolderId = id;
+      let targetFolderName = "";
+      if (isDrawingArea && groupCode.trim()) {
+        const folderRes = await fetch("/api/folders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ parentId: id, name: groupCode.trim() }),
+        });
+        const folderData = await folderRes.json();
+        if (!folderRes.ok) {
+          setStatus({ text: folderData.error || "Could not create/find the group folder.", ok: false });
+          setBusy(false);
+          return;
+        }
+        targetFolderId = folderData.id;
+        targetFolderName = folderData.name;
+      }
+
       const res = await fetch("/api/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           isDrawingArea
-            ? { folderId: id, name: drawingName.trim(), dataUrl: current.cropped }
-            : { folderId: id, phase: phase || null, dataUrl: current.cropped }
+            ? { folderId: targetFolderId, name: drawingName.trim(), dataUrl: current.cropped }
+            : { folderId: targetFolderId, phase: phase || null, dataUrl: current.cropped }
         ),
       });
       const data = await res.json();
       if (!res.ok) {
         setStatus({ text: data.error || "Could not save the photo.", ok: false });
       } else {
-        setStatus({ text: `Saved as ${data.filename}`, ok: true });
+        setStatus({
+          text: `Saved as ${data.filename}${targetFolderName ? ` in ${targetFolderName}` : ""}`,
+          ok: true,
+        });
         advanceQueue();
-        loadPhotos();
+        if (targetFolderId === id) {
+          loadPhotos();
+        } else {
+          loadSubfolders();
+        }
       }
     } catch {
       setStatus({ text: "Could not connect. Try again.", ok: false });
@@ -310,6 +352,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     setQueue((q) => q.slice(1));
     setPhase("");
     setDrawingName("");
+    setGroupCode("");
     if (queue.length <= 1 && fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -325,6 +368,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     setTitleBlockCropping(null);
     setPhase("");
     setDrawingName("");
+    setGroupCode("");
     setBatchTotal(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
@@ -530,6 +574,23 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
               <img src={current.cropped} alt="preview" className="preview-thumb" />
               {isDrawingArea ? (
                 <>
+                  <label className="field-label" htmlFor="groupCodeInput">
+                    Folder (optional)
+                  </label>
+                  <input
+                    id="groupCodeInput"
+                    type="text"
+                    value={groupCode}
+                    onChange={(e) => setGroupCode(e.target.value)}
+                    placeholder={detectingDrawingName ? "Scanning…" : "e.g. PG-213"}
+                    autoFocus
+                    style={{ marginBottom: 4 }}
+                  />
+                  <p className="muted" style={{ marginTop: 0, marginBottom: 14 }}>
+                    {groupCode.trim()
+                      ? `Will be saved inside a "${groupCode.trim()}" folder here (created if it doesn't exist yet).`
+                      : "Pulled from above the description automatically -- leave blank to save directly in this folder."}
+                  </p>
                   <label className="field-label" htmlFor="drawingNameInput">
                     Drawing name
                   </label>
@@ -539,7 +600,6 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                     value={drawingName}
                     onChange={(e) => setDrawingName(e.target.value)}
                     placeholder={detectingDrawingName ? "Scanning…" : "e.g. E-101"}
-                    autoFocus
                     style={{ marginBottom: 4 }}
                   />
                   <p className="muted" style={{ marginTop: 0, marginBottom: 14 }}>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { extractFullText } from "@/lib/googleVision";
-import { guessDrawingName } from "@/lib/drawingName";
+import { guessDrawingName, guessGroupCode } from "@/lib/drawingName";
 
 // As Built Drawings scan flow: given a photo of a drawing, OCRs it and
 // guesses a drawing number/title from the title block (see
@@ -21,7 +21,11 @@ export async function POST(req: NextRequest) {
   try {
     const text = await extractFullText(base64Content);
     const guessedName = text ? guessDrawingName(text) : null;
-    return NextResponse.json({ guessedName, rawText: text || "" });
+    // The group code above the description (e.g. "PG-213") -- used to
+    // auto-file the scan into a matching subfolder. Same fail-soft rule:
+    // never blocks saving, just pre-fills a field the person can clear.
+    const guessedGroup = text ? guessGroupCode(text) : null;
+    return NextResponse.json({ guessedName, guessedGroup, rawText: text || "" });
   } catch {
     return NextResponse.json({ guessedName: null, rawText: "" });
   }
