@@ -853,7 +853,7 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
           <>
             <button
               type="button"
-              className="secondary-button"
+              className="camera-button"
               style={{ width: "100%" }}
               onClick={saveFolderToOneDrive}
               disabled={oneDriveSaving}

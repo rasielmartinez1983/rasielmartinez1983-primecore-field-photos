@@ -328,7 +328,7 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
             <div style={{ height: 14 }} />
             <button
               type="button"
-              className="secondary-button"
+              className="camera-button"
               style={{ width: "100%" }}
               onClick={saveAreaToOneDrive}
               disabled={oneDriveSaving}
