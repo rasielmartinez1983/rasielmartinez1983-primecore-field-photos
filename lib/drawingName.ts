@@ -85,24 +85,40 @@ export function guessSheetNumber(text: string): string | null {
   return null;
 }
 
-// The description line, e.g. "PRIMARY & BACKUP LINE PNL AC ELEMENTARY
-// DIAGRAM" -- picked as the longest mostly-letters line that isn't
-// boilerplate and doesn't just repeat the number/sheet already found.
-export function guessDescription(text: string, exclude: string[] = []): string | null {
+// Finds every description-like line (mostly letters, not boilerplate,
+// doesn't repeat the number/sheet) and joins all of them, since the
+// description is often stacked across 2-3 lines in the title block --
+// e.g. "KEENTOWN SUBSTATION" / "DFR CONTROL UNIT" / "ELEMENTARY DIAGRAM"
+// is really one description, not three separate candidates to pick just
+// one from. Also returns the index of the first matching line so
+// guessGroupCode can search only the lines above the description block
+// (the group code physically sits right above it in the title block).
+function findDescriptionLines(text: string, exclude: string[] = []): { text: string; firstIndex: number } | null {
   if (!text) return null;
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  let best: string | null = null;
-  for (const line of lines) {
-    if (JUNK_LINE_PATTERN.test(line)) continue;
-    if (exclude.some((ex) => ex && line.toUpperCase().includes(ex.toUpperCase()))) continue;
+  const matches: string[] = [];
+  let firstIndex = -1;
+  lines.forEach((line, i) => {
+    if (JUNK_LINE_PATTERN.test(line)) return;
+    if (SHEET_LABELED_PATTERN.test(line) || SHEET_OF_PATTERN.test(line)) return;
+    if (exclude.some((ex) => ex && line.toUpperCase().includes(ex.toUpperCase()))) return;
     const words = line.split(/\s+/).filter(Boolean);
-    if (words.length < 2) continue;
+    if (words.length < 2) return;
     const letters = (line.match(/[A-Za-z]/g) || []).length;
     const digits = (line.match(/[0-9]/g) || []).length;
-    if (letters < 6 || digits > letters / 2) continue;
-    if (!best || line.length > best.length) best = line;
-  }
-  return best;
+    if (letters < 6 || digits > letters / 2) return;
+    if (firstIndex === -1) firstIndex = i;
+    matches.push(line);
+  });
+  if (matches.length === 0) return null;
+  return { text: matches.join(" "), firstIndex };
+}
+
+// The description, e.g. "PRIMARY & BACKUP LINE PNL AC ELEMENTARY
+// DIAGRAM" -- combines every description-like line into one string (see
+// findDescriptionLines above).
+export function guessDescription(text: string, exclude: string[] = []): string | null {
+  return findDescriptionLines(text, exclude)?.text ?? null;
 }
 
 // The group/print-set code above the description (e.g. "PG-213",
@@ -114,9 +130,8 @@ export function guessDescription(text: string, exclude: string[] = []): string |
 export function guessGroupCode(text: string): string | null {
   if (!text) return null;
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-  const description = guessDescription(text);
-  const descIndex = description ? lines.indexOf(description) : -1;
-  const searchLines = descIndex >= 0 ? lines.slice(0, descIndex) : lines;
+  const description = findDescriptionLines(text);
+  const searchLines = description && description.firstIndex >= 0 ? lines.slice(0, description.firstIndex) : lines;
   for (const line of searchLines) {
     const m = line.match(GROUP_CODE_PATTERN);
     if (m) return m[1].toUpperCase();
