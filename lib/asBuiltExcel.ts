@@ -10,27 +10,59 @@
 // Difference from the Python version: this produces a plain .xlsx, not
 // .xlsm. field-photos is a Node/TypeScript app and there's no library here
 // that preserves an .xlsm's embedded VBA project the way Python's openpyxl
-// (keep_vba=True) does -- exceljs only round-trips it. Since the macros
-// aren't needed once the form is filled in for submission, data/
-// AsBuiltSubmittalFormBlank.xlsx (converted from the original .xlsm, same
-// layout, macros dropped) is the template here.
+// (keep_vba=True) does. Since the macros aren't needed once the form is
+// filled in for submission, data/AsBuiltSubmittalFormBlank.xlsx (converted
+// from the original .xlsm, same layout, macros dropped) is the template
+// here.
 //
-// Layout (identical to the Python version -- read off the same real FPL
-// template):
-//   - One-time header fields, filled once per document.
-//   - A 30-row table repeated in TWO side-by-side blocks (drawings 1-30 in
-//     columns B/C/D/E, drawings 31-60 in columns G/H/I/J), rows 12-41 in
-//     both blocks.
-//   - Batches over 60 drawings spill onto additional copies of the sheet
-//     (see cloneWorksheet below), same as the Python version.
+// IMPLEMENTATION NOTE -- why this edits raw XML instead of using a
+// full-featured Excel library like exceljs:
+//
+// An earlier version of this file used exceljs (load template -> set cell
+// values -> writeBuffer). That produced files real Excel refused to open
+// cleanly -- "We found a problem with some content" / "Workbook Repaired",
+// silently stripping every cell's content down to a blank sheet. Traced
+// this down to a genuine exceljs bug: even loading the template and
+// writing it back out completely UNMODIFIED corrupts it. Diffing the raw
+// OOXML of the original (opens fine) against exceljs's round-tripped copy
+// (corrupt) showed exceljs's style-table writer emits an extra
+// `<fill><patternFill/></fill>` (no patternType attribute) at a fill index
+// other than 0 -- per the OOXML spec, only fill index 0 is allowed to omit
+// patternType (it's the implicit "none" builtin); anywhere else that's
+// invalid and real Excel's stricter parser rejects it, even though
+// exceljs's own (lenient) reader and Python's openpyxl both happily read
+// it back and made this very hard to catch locally.
+//
+// Rather than fight exceljs's style serializer, this module never asks any
+// library to re-serialize xl/styles.xml, xl/theme/theme1.xml, or
+// xl/sharedStrings.xml at all -- those parts are copied byte-for-byte from
+// the known-good template (verified to open cleanly in real Excel) via
+// JSZip, and only the worksheet XML's empty <c> cell elements are patched
+// in place with inline string values (t="inlineStr"), never touching
+// anything that isn't a cell this module actually fills in. Every
+// coordinate written here is confirmed (by hand, against the real
+// template's XML) to already exist as a pre-styled, empty cell, so this
+// never needs to invent a new <c> element or renumber any style index.
+//
+// Batches over 60 drawings still spill onto additional pages, same as the
+// Python version -- done here by duplicating the base worksheet's XML part
+// verbatim (same styles/merges/dimension, just filled with the next 60
+// rows) rather than asking a library to "clone a worksheet", for the same
+// reason: it's a plain copy of already-valid XML, so it can't introduce a
+// new style-table bug.
 
-import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import fs from "fs/promises";
 import path from "path";
 
 const TEMPLATE_PATH = path.join(process.cwd(), "data", "AsBuiltSubmittalFormBlank.xlsx");
 
 export const SHEET_NAME = "As Built Submittal Form (1)";
+
+// The template's worksheet parts are xl/worksheets/sheet1.xml (SHEET_NAME)
+// and xl/worksheets/sheet2.xml ("Sheet1", an unrelated VBA-helper tab left
+// over from the original .xlsm -- see workbook.xml's <sheets> ordering).
+const BASE_SHEET_PART = "xl/worksheets/sheet1.xml";
 
 const FIRST_ROW = 12;
 const LAST_ROW = 41;
@@ -72,6 +104,10 @@ export type AsBuiltRow = {
   cause: string;
 };
 
+function xmlEscape(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // Excel worksheet titles cap at 31 characters and disallow duplicates in
 // the same workbook. Page 1 keeps the template's own sheet name untouched
 // (SHEET_NAME above). Page 2+: the real template's name already ends in
@@ -79,9 +115,7 @@ export type AsBuiltRow = {
 // already fit -- is swapping that trailing number for the page number
 // (e.g. "... (2)"). Only falls back to an appended/truncated suffix if the
 // title doesn't end that way, and even then truncates at the last whole
-// word rather than mid-word (see the matching comment in excel_fill.py --
-// an earlier version of that logic cut "...Submittal Form (1)" down to
-// "...Submittal For (page 2)", silently dropping the "m" off "Form").
+// word rather than mid-word.
 function sheetTitleForPage(baseTitle: string, pageNum: number): string {
   if (pageNum === 1) return baseTitle;
   const trailingOne = baseTitle.match(/^(.*)\(1\)\s*$/);
@@ -96,51 +130,34 @@ function sheetTitleForPage(baseTitle: string, pageNum: number): string {
   return truncated + suffix;
 }
 
-// exceljs has no built-in "duplicate this worksheet" -- this copies
-// values, per-cell styles (font/fill/border/alignment/numFmt), row
-// heights, column widths, and merged-cell ranges from `source` onto a
-// freshly added worksheet named `title`. Good enough for this form (no
-// images/charts/data-validation dropdowns on it to worry about losing).
-function cloneWorksheet(workbook: ExcelJS.Workbook, source: ExcelJS.Worksheet, title: string): ExcelJS.Worksheet {
-  const target = workbook.addWorksheet(title);
-
-  source.eachRow({ includeEmpty: true }, (row: ExcelJS.Row, rowNumber: number) => {
-    const targetRow = target.getRow(rowNumber);
-    row.eachCell({ includeEmpty: true }, (cell: ExcelJS.Cell, colNumber: number) => {
-      const targetCell = targetRow.getCell(colNumber);
-      targetCell.value = cell.value;
-      targetCell.style = { ...cell.style };
-    });
-    if (row.height) targetRow.height = row.height;
-    targetRow.commit();
-  });
-
-  source.columns.forEach((col: Partial<ExcelJS.Column>, i: number) => {
-    const targetCol = target.getColumn(i + 1);
-    if (col.width) targetCol.width = col.width;
-  });
-
-  // source.model.merges is a flat array of range strings, e.g. "B6:F6".
-  for (const range of (source.model as any).merges || []) {
-    try {
-      target.mergeCells(range);
-    } catch {
-      // Skip a merge that doesn't apply cleanly rather than failing the
-      // whole page -- cosmetic only, never blocks getting the data in.
-    }
+// Replaces one <c r="COORD" .../> (or <c r="COORD" ...></c>) element's
+// content with an inline string, preserving whatever style (s="N") the
+// template cell already had. Every coordinate this module writes to is a
+// pre-formatted, empty cell in the real template (confirmed by hand
+// against the raw XML) -- a miss here means the template changed shape
+// and is worth logging rather than silently swallowing or throwing (a
+// missing decorative field shouldn't block the rest of the form).
+function setCellValue(sheetXml: string, coord: string, value: string): string {
+  const cellPattern = new RegExp(`<c r="${coord}"([^>]*?)(?:/>|>[\\s\\S]*?</c>)`);
+  if (!cellPattern.test(sheetXml)) {
+    console.warn(`asBuiltExcel: cell ${coord} not found in template worksheet XML -- value skipped.`);
+    return sheetXml;
   }
-
-  return target;
+  return sheetXml.replace(cellPattern, (_match, attrs: string) => {
+    const styleMatch = attrs.match(/\ss="(\d+)"/);
+    const styleAttr = styleMatch ? ` s="${styleMatch[1]}"` : "";
+    return `<c r="${coord}"${styleAttr} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
+  });
 }
 
-function setHeaderCells(ws: ExcelJS.Worksheet, header: AsBuiltHeader) {
+function fillSheetXml(sheetXml: string, header: AsBuiltHeader, pageRows: AsBuiltRow[]): string {
+  let xml = sheetXml;
+
   for (const [key, coord] of Object.entries(HEADER_CELLS)) {
     const value = (header as Record<string, string | undefined>)[key];
-    if (value) ws.getCell(coord).value = value;
+    if (value) xml = setCellValue(xml, coord, value);
   }
-}
 
-function setRowCells(ws: ExcelJS.Worksheet, pageRows: AsBuiltRow[]) {
   pageRows.forEach((row, i) => {
     let r: number;
     let cols: [string, string, string, string];
@@ -152,49 +169,98 @@ function setRowCells(ws: ExcelJS.Worksheet, pageRows: AsBuiltRow[]) {
       cols = ["G", "H", "I", "J"];
     }
     const [drawingCol, sheetCol, panelCol, causeCol] = cols;
-    if (row.drawingNumber) ws.getCell(`${drawingCol}${r}`).value = row.drawingNumber;
-    if (row.sheetNumber) ws.getCell(`${sheetCol}${r}`).value = row.sheetNumber;
-    if (row.panelPosition) ws.getCell(`${panelCol}${r}`).value = row.panelPosition;
-    if (row.cause) ws.getCell(`${causeCol}${r}`).value = row.cause;
+    if (row.drawingNumber) xml = setCellValue(xml, `${drawingCol}${r}`, row.drawingNumber);
+    if (row.sheetNumber) xml = setCellValue(xml, `${sheetCol}${r}`, row.sheetNumber);
+    if (row.panelPosition) xml = setCellValue(xml, `${panelCol}${r}`, row.panelPosition);
+    if (row.cause) xml = setCellValue(xml, `${causeCol}${r}`, row.cause);
   });
+
+  return xml;
+}
+
+async function readZipPart(zip: JSZip, partName: string): Promise<string> {
+  const file = zip.file(partName);
+  if (!file) throw new Error(`Template is missing expected part "${partName}".`);
+  return file.async("string");
 }
 
 // header is filled onto every page so each one is self-contained if
 // printed separately. rows can be any length -- batches beyond the first
-// 60 spill onto additional pages (see sheetTitleForPage/cloneWorksheet
-// above), matching the Python version's behavior. Returns the filled
-// workbook as .xlsx bytes.
+// 60 spill onto additional pages (see sheetTitleForPage above), matching
+// the Python version's behavior. Returns the filled workbook as .xlsx
+// bytes.
 export async function fillAsBuiltForm(header: AsBuiltHeader, rows: AsBuiltRow[]): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
   const templateBytes = await fs.readFile(TEMPLATE_PATH);
-  // exceljs resolves its own (older) copy of @types/node's Buffer type,
-  // separate from the one this project's fs.readFile() returns -- `as
-  // unknown as Buffer` didn't help here because "Buffer" still resolves to
-  // the SAME modern generic type within this file, so the cast was a
-  // no-op. `as any` is the one cast that actually sidesteps the
-  // structural check between two same-named-but-different Buffer
-  // declarations; this is still a real Node Buffer at runtime either way.
-  await workbook.xlsx.load(templateBytes as any);
+  const zip = await JSZip.loadAsync(templateBytes);
 
-  const baseWs = workbook.getWorksheet(SHEET_NAME);
-  if (!baseWs) {
-    throw new Error(`Template is missing the expected "${SHEET_NAME}" sheet.`);
-  }
+  const baseSheetXml = await readZipPart(zip, BASE_SHEET_PART);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / ROWS_PER_SHEET));
 
-  const worksheets: ExcelJS.Worksheet[] = [baseWs];
-  for (let pageNum = 2; pageNum <= pageCount; pageNum++) {
-    worksheets.push(cloneWorksheet(workbook, baseWs, sheetTitleForPage(SHEET_NAME, pageNum)));
+  // Page 1: fill straight into the existing part.
+  zip.file(BASE_SHEET_PART, fillSheetXml(baseSheetXml, header, rows.slice(0, ROWS_PER_SHEET)));
+
+  if (pageCount > 1) {
+    const workbookXml = await readZipPart(zip, "xl/workbook.xml");
+    const relsXml = await readZipPart(zip, "xl/_rels/workbook.xml.rels");
+    const contentTypesXml = await readZipPart(zip, "[Content_Types].xml");
+
+    const existingRIds = [...relsXml.matchAll(/Id="rId(\d+)"/g)].map((m) => Number(m[1]));
+    const existingSheetIds = [...workbookXml.matchAll(/sheetId="(\d+)"/g)].map((m) => Number(m[1]));
+    const existingPartNums = Object.keys(zip.files)
+      .map((f) => f.match(/^xl\/worksheets\/sheet(\d+)\.xml$/))
+      .filter((m): m is RegExpMatchArray => m !== null)
+      .map((m) => Number(m[1]));
+
+    let nextPartNum = Math.max(...existingPartNums) + 1;
+    let nextRId = Math.max(...existingRIds) + 1;
+    let nextSheetId = Math.max(...existingSheetIds) + 1;
+
+    let newWorkbookXml = workbookXml;
+    let newRelsXml = relsXml;
+    let newContentTypesXml = contentTypesXml;
+
+    // codeName is a VBA-project internal identifier and should be unique
+    // per sheet in a workbook with an active VBA project. This .xlsx has
+    // no vbaProject.bin (macros were dropped converting from the original
+    // .xlsm), so a duplicate codeName is harmless either way -- stripped
+    // here anyway since there's no reason to carry it over.
+    const cloneTemplateXml = baseSheetXml.replace(/ codeName="[^"]*"/, "");
+
+    for (let pageNum = 2; pageNum <= pageCount; pageNum++) {
+      const partName = `xl/worksheets/sheet${nextPartNum}.xml`;
+      const rId = `rId${nextRId}`;
+      const title = sheetTitleForPage(SHEET_NAME, pageNum);
+      const pageRows = rows.slice((pageNum - 1) * ROWS_PER_SHEET, pageNum * ROWS_PER_SHEET);
+
+      zip.file(partName, fillSheetXml(cloneTemplateXml, header, pageRows));
+
+      newRelsXml = newRelsXml.replace(
+        "</Relationships>",
+        `<Relationship Id="${rId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${nextPartNum}.xml"/></Relationships>`
+      );
+      newContentTypesXml = newContentTypesXml.replace(
+        "</Types>",
+        `<Override PartName="/${partName}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`
+      );
+      newWorkbookXml = newWorkbookXml.replace(
+        "</sheets>",
+        `<sheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" name="${xmlEscape(title)}" sheetId="${nextSheetId}" state="visible" r:id="${rId}"/></sheets>`
+      );
+
+      nextPartNum++;
+      nextRId++;
+      nextSheetId++;
+    }
+
+    zip.file("xl/workbook.xml", newWorkbookXml);
+    zip.file("xl/_rels/workbook.xml.rels", newRelsXml);
+    zip.file("[Content_Types].xml", newContentTypesXml);
   }
 
-  worksheets.forEach((ws, idx) => {
-    const pageNum = idx + 1;
-    setHeaderCells(ws, header);
-    const pageRows = rows.slice((pageNum - 1) * ROWS_PER_SHEET, pageNum * ROWS_PER_SHEET);
-    setRowCells(ws, pageRows);
-  });
-
-  const buffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buffer as any);
+  // Explicit DEFLATE -- JSZip defaults to no compression (STORE), which
+  // Excel opens fine but produces a needlessly large file compared to a
+  // normal .xlsx (every real xlsx writer, including the original
+  // openpyxl-produced template, compresses its parts).
+  return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }
