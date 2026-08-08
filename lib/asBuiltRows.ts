@@ -46,6 +46,30 @@ function todayIso(): string {
 
 export type AsBuiltFormData = { header: AsBuiltHeader; rows: AsBuiltRow[] };
 
+type ProjectHeaderFields = {
+  substationName: string | null;
+  name: string | null;
+  date: Date | string | null;
+  createdAt: Date | string;
+};
+
+function buildHeader(project: ProjectHeaderFields): AsBuiltHeader {
+  return {
+    substationLocation: project.substationName || "",
+    projectDescription: project.name || "",
+    // project.date already mirrors ops.primecore's project creation date
+    // (startDate, falling back to createdAt -- see
+    // primecore-ops-local/app/api/internal/create-project's route on the
+    // ops-local side); falls back again here to field-photos' own
+    // createdAt on the off chance date is null.
+    date: dateOnly(project.date) || dateOnly(project.createdAt),
+    // "The day the PDFs were collected from field-photos" -- since this
+    // form is rebuilt fresh every time (see the OneDrive backup routes),
+    // that's today, the day of this rebuild.
+    dateCollected: todayIso(),
+  };
+}
+
 // Returns null if the project doesn't exist. An existing project with no
 // As Built Drawings photos yet still returns a valid (empty-rows) result --
 // callers decide whether an empty form is worth uploading.
@@ -109,20 +133,5 @@ export async function buildAsBuiltFormData(projectId: string): Promise<AsBuiltFo
     return a.createdAt.getTime() - b.createdAt.getTime();
   });
 
-  const header: AsBuiltHeader = {
-    substationLocation: project.substationName || "",
-    projectDescription: project.name || "",
-    // project.date already mirrors ops.primecore's project creation date
-    // (startDate, falling back to createdAt -- see
-    // primecore-ops-local/app/api/internal/create-project's route on the
-    // ops-local side); falls back again here to field-photos' own
-    // createdAt on the off chance date is null.
-    date: dateOnly(project.date) || dateOnly(project.createdAt),
-    // "The day the PDFs were collected from field-photos" -- since this
-    // form is rebuilt fresh every time (see the OneDrive backup routes),
-    // that's today, the day of this rebuild.
-    dateCollected: todayIso(),
-  };
-
-  return { header, rows: sources.map((s) => s.row) };
+  return { header: buildHeader(project), rows: sources.map((s) => s.row) };
 }

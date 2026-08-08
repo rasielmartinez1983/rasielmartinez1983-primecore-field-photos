@@ -85,9 +85,15 @@ export async function POST(req: NextRequest) {
 
   // This folder is part of As Built Drawings -- regenerate the whole
   // project's As-Built Submittal Form .xlsx (every drawing currently
-  // saved anywhere under As Built Drawings, not just this one folder) and
-  // drop it inside the site's default "As Built Drawings" subfolder, a
-  // sibling of the actual panel/drawing folders -- see the matching
+  // saved anywhere under As Built Drawings, not just this one folder).
+  // This is what makes saves "accumulate": the DB keeps every photo from
+  // every folder that's ever been saved, so pulling the whole project's
+  // current state -- rather than just this one folder's photos -- means
+  // saving PG-0906 today and PG-213 tomorrow both end up reflected in the
+  // one shared file, in whatever order they were actually saved in, with
+  // nothing lost from folders you saved earlier and aren't touching right
+  // now. Dropped inside the site's default "As Built Drawings" subfolder,
+  // a sibling of the actual panel/drawing folders -- see the matching
   // comment in backup-project's route for the full nesting rationale.
   // Same best-effort/fail-soft behavior as backup-project's route.
   let excelError: string | undefined;
