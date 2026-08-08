@@ -86,8 +86,10 @@ export async function POST(req: NextRequest) {
   // This folder is part of As Built Drawings -- regenerate the whole
   // project's As-Built Submittal Form .xlsx (every drawing currently
   // saved anywhere under As Built Drawings, not just this one folder) and
-  // drop it at the top of the project's As Built Drawings folder. Same
-  // best-effort/fail-soft behavior as backup-project's route.
+  // drop it inside the site's default "As Built Drawings" subfolder, a
+  // sibling of the actual panel/drawing folders -- see the matching
+  // comment in backup-project's route for the full nesting rationale.
+  // Same best-effort/fail-soft behavior as backup-project's route.
   let excelError: string | undefined;
   if (folder.area === AS_BUILT_AREA) {
     try {
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
       if (formData && formData.rows.length > 0) {
         const buffer = await fillAsBuiltForm(formData.header, formData.rows);
         await uploadFile(
-          `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
+          `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
           buffer,
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );

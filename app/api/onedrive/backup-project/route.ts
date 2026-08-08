@@ -118,11 +118,16 @@ export async function POST(req: NextRequest) {
   // Whenever As Built Drawings is part of this backup (either a whole-
   // project backup, or the As Built Drawings site's own "Save to
   // OneDrive" button), regenerate the As-Built Submittal Form .xlsx from
-  // scratch off whatever's currently saved and drop it at the top of the
-  // project's As Built Drawings folder -- a sibling of the drawing
-  // subfolders, not inside any of them. Best-effort: a failure here never
-  // touches the uploaded/failed counts above (the actual drawing PDFs are
-  // the thing that matters most), just gets its own error field.
+  // scratch off whatever's currently saved and drop it inside the site's
+  // default "As Built Drawings" subfolder -- a sibling of the actual
+  // panel/drawing folders (e.g. PG-0906, PG-213), which live one level
+  // deeper than the site itself (site "As Built Drawings" -> default
+  // child folder "As Built Drawings" -> panel folders; see
+  // DEFAULT_CONTAINER_NAMES in lib/asBuiltRows.ts and folderPath() above,
+  // which is what actually produces that nesting for the drawing PDFs).
+  // Best-effort: a failure here never touches the uploaded/failed counts
+  // above (the actual drawing PDFs are the thing that matters most), just
+  // gets its own error field.
   let excelError: string | undefined;
   if (!area || area === AS_BUILT_AREA) {
     try {
@@ -130,7 +135,7 @@ export async function POST(req: NextRequest) {
       if (formData && formData.rows.length > 0) {
         const buffer = await fillAsBuiltForm(formData.header, formData.rows);
         await uploadFile(
-          `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
+          `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
           buffer,
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
