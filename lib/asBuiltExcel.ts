@@ -108,6 +108,10 @@ function xmlEscape(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function xmlUnescape(value: string): string {
+  return value.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+
 // Excel worksheet titles cap at 31 characters and disallow duplicates in
 // the same workbook. Page 1 keeps the template's own sheet name untouched
 // (SHEET_NAME above). Page 2+: the real template's name already ends in
@@ -148,6 +152,23 @@ function setCellValue(sheetXml: string, coord: string, value: string): string {
     const styleAttr = styleMatch ? ` s="${styleMatch[1]}"` : "";
     return `<c r="${coord}"${styleAttr} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(value)}</t></is></c>`;
   });
+}
+
+// Reads one cell's current value back out of worksheet XML -- the inverse
+// of setCellValue. Handles both the inline-string cells this module writes
+// (t="inlineStr"><is><t>...) and the plain numeric/empty cells the
+// template ships with (t="n"><v>...), returning "" for a cell that's
+// empty, self-closing, or not present at all.
+function getCellValue(sheetXml: string, coord: string): string {
+  const cellPattern = new RegExp(`<c r="${coord}"[^>]*?(?:/>|>([\\s\\S]*?)</c>)`);
+  const match = sheetXml.match(cellPattern);
+  const inner = match?.[1];
+  if (!inner) return "";
+  const inlineMatch = inner.match(/<t[^>]*>([\s\S]*?)<\/t>/);
+  if (inlineMatch) return xmlUnescape(inlineMatch[1]);
+  const valueMatch = inner.match(/<v>([\s\S]*?)<\/v>/);
+  if (valueMatch) return xmlUnescape(valueMatch[1]);
+  return "";
 }
 
 function fillSheetXml(sheetXml: string, header: AsBuiltHeader, pageRows: AsBuiltRow[]): string {
@@ -263,4 +284,82 @@ export async function fillAsBuiltForm(header: AsBuiltHeader, rows: AsBuiltRow[])
   // normal .xlsx (every real xlsx writer, including the original
   // openpyxl-produced template, compresses its parts).
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+}
+
+// Reads every row currently filled into an already-generated As-Built
+// Submittal Form .xlsx (e.g. one just downloaded back from OneDrive) --
+// the inverse of fillAsBuiltForm. Used to merge a per-folder save into
+// whatever's already there instead of overwriting it (see
+// app/api/onedrive/backup-folder's route): download the existing file,
+// read its rows back out, drop the rows for whichever folder is being
+// re-saved, append that folder's fresh rows, and re-fill from scratch.
+//
+// Walks every worksheet whose name starts with "As Built Submittal Form"
+// (page 1 keeps SHEET_NAME exactly; page 2+ are named via
+// sheetTitleForPage, e.g. "As Built Submittal Form (2)") -- this
+// naturally skips the unrelated "Sheet1" VBA-helper tab -- and reads both
+// column blocks of every row slot, skipping any slot that's entirely
+// empty (a still-unused row on the last page).
+export async function readAsBuiltRows(buffer: Buffer): Promise<AsBuiltRow[]> {
+  const zip = await JSZip.loadAsync(buffer);
+  const workbookXml = await readZipPart(zip, "xl/workbook.xml");
+  const relsXml = await readZipPart(zip, "xl/_rels/workbook.xml.rels");
+
+  // Attribute order isn't consistent across entries in this file: the
+  // template's own original relationships (rId1-4, written by openpyxl)
+  // put Id last ('Type="..." Target="..." Id="rId1"'), while the ones
+  // fillAsBuiltForm adds for extra pages put Id first. Match each whole
+  // <Relationship/> tag and pull Id/Target out independently rather than
+  // assuming either comes first.
+  const relTargets = new Map<string, string>();
+  for (const tagMatch of relsXml.matchAll(/<Relationship\b[^>]*\/>/g)) {
+    const idMatch = tagMatch[0].match(/Id="(rId\d+)"/);
+    const targetMatch = tagMatch[0].match(/Target="([^"]+)"/);
+    if (idMatch && targetMatch) relTargets.set(idMatch[1], targetMatch[1]);
+  }
+
+  const sheetParts: string[] = [];
+  for (const m of workbookXml.matchAll(/<sheet[^>]*name="([^"]*)"[^>]*r:id="(rId\d+)"/g)) {
+    const [, name, rId] = m;
+    if (!name.startsWith("As Built Submittal Form")) continue;
+    const target = relTargets.get(rId);
+    if (!target) continue;
+    // Same inconsistency as above: the template's own original entries
+    // use a leading-slash, "xl/"-prefixed absolute target
+    // ("/xl/worksheets/sheet1.xml"), while entries added here use a
+    // package-relative one ("worksheets/sheet3.xml"). Normalize both to
+    // a JSZip-relative path (no leading slash, always "xl/"-prefixed).
+    const normalized = target.replace(/^\//, "");
+    sheetParts.push(normalized.startsWith("xl/") ? normalized : `xl/${normalized}`);
+  }
+
+  const rows: AsBuiltRow[] = [];
+  for (const partName of sheetParts) {
+    const sheetXml = await zip.file(partName)?.async("string");
+    if (!sheetXml) continue;
+
+    for (let i = 0; i < ROWS_PER_SHEET; i++) {
+      let r: number;
+      let cols: [string, string, string, string];
+      if (i < BLOCK_SIZE) {
+        r = FIRST_ROW + i;
+        cols = ["B", "C", "D", "E"];
+      } else {
+        r = FIRST_ROW + (i - BLOCK_SIZE);
+        cols = ["G", "H", "I", "J"];
+      }
+      const [drawingCol, sheetCol, panelCol, causeCol] = cols;
+      const row: AsBuiltRow = {
+        drawingNumber: getCellValue(sheetXml, `${drawingCol}${r}`),
+        sheetNumber: getCellValue(sheetXml, `${sheetCol}${r}`),
+        panelPosition: getCellValue(sheetXml, `${panelCol}${r}`),
+        cause: getCellValue(sheetXml, `${causeCol}${r}`),
+      };
+      if (row.drawingNumber || row.sheetNumber || row.panelPosition || row.cause) {
+        rows.push(row);
+      }
+    }
+  }
+
+  return rows;
 }

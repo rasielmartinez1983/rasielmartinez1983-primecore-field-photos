@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForPath } from "@/lib/filename";
-import { uploadFile } from "@/lib/msGraph";
+import { uploadFile, getItem, downloadFile } from "@/lib/msGraph";
 import { findProjectFolderPath } from "@/lib/projectFolder";
-import { fillAsBuiltForm } from "@/lib/asBuiltExcel";
+import { fillAsBuiltForm, readAsBuiltRows, type AsBuiltRow } from "@/lib/asBuiltExcel";
 import { buildAsBuiltFormDataForFolder } from "@/lib/asBuiltRows";
 
 const AS_BUILT_AREA = "As Built Drawings";
@@ -84,29 +84,47 @@ export async function POST(req: NextRequest) {
   }
 
   // This folder is part of As Built Drawings -- regenerate the As-Built
-  // Submittal Form .xlsx scoped to ONLY this folder's own drawings (see
-  // buildAsBuiltFormDataForFolder), matching the same scope as the photo
-  // upload loop above. Confirmed with the user: this means the shared
-  // file always reflects whichever folder was most recently saved from
-  // here -- use the project's or the As Built Drawings site's own "Save
-  // to OneDrive" button (backup-project's route, which pulls the whole
-  // project via buildAsBuiltFormData) to get every folder back into one
-  // file. Dropped inside the site's default "As Built Drawings"
-  // subfolder, a sibling of the actual panel/drawing folders -- see the
-  // matching comment in backup-project's route for the full nesting
-  // rationale. Same best-effort/fail-soft behavior as backup-project's
-  // route.
+  // Submittal Form .xlsx with this folder's fresh rows MERGED into
+  // whatever's already saved for every other folder, rather than either
+  // overwriting the whole file (losing other folders) or always
+  // regenerating from the entire project (which pulled in folders the
+  // user didn't touch and looked wrong to them). To merge: download
+  // whatever's currently at the target path (if anything), read its rows
+  // back out, drop only the rows tagged with this folder's own Panel
+  // Position, and append this folder's current rows in their place --
+  // every other folder's previously-saved rows pass through untouched.
+  // Dropped inside the site's default "As Built Drawings" subfolder, a
+  // sibling of the actual panel/drawing folders -- see the matching
+  // comment in backup-project's route for the full nesting rationale.
+  // Same best-effort/fail-soft behavior as backup-project's route.
   let excelError: string | undefined;
   if (folder.area === AS_BUILT_AREA) {
     try {
       const formData = await buildAsBuiltFormDataForFolder(folder.id);
-      if (formData && formData.rows.length > 0) {
-        const buffer = await fillAsBuiltForm(formData.header, formData.rows);
-        await uploadFile(
-          `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
-          buffer,
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        );
+      if (formData) {
+        const excelPath = `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`;
+
+        let otherFolderRows: AsBuiltRow[] = [];
+        try {
+          const existingItem = await getItem(excelPath);
+          if (existingItem) {
+            const existingBuffer = await downloadFile(existingItem.id);
+            const existingRows = await readAsBuiltRows(existingBuffer);
+            otherFolderRows = existingRows.filter((r) => r.panelPosition !== formData.panelPosition);
+          }
+        } catch (e) {
+          // Best-effort -- if the existing file can't be read for any
+          // reason (corrupt, permissions, first-ever save), fall through
+          // and write just this folder's rows rather than blocking the
+          // whole save.
+          console.error(`Could not read existing As-Built Submittal Form to merge for project ${folder.project.id}:`, e);
+        }
+
+        const mergedRows = [...otherFolderRows, ...formData.rows];
+        if (mergedRows.length > 0) {
+          const buffer = await fillAsBuiltForm(formData.header, mergedRows);
+          await uploadFile(excelPath, buffer, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        }
       }
     } catch (e) {
       excelError = e instanceof Error ? e.message : String(e);

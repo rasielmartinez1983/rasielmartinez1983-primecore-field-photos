@@ -136,27 +136,32 @@ export async function buildAsBuiltFormData(projectId: string): Promise<AsBuiltFo
   return { header: buildHeader(project), rows: sources.map((s) => s.row) };
 }
 
+export type FolderAsBuiltFormData = AsBuiltFormData & {
+  // The Panel Position value these rows were tagged with -- exposed so a
+  // caller merging this folder's rows into an already-existing file (see
+  // app/api/onedrive/backup-folder's route) knows exactly which existing
+  // rows belong to this same folder and should be replaced rather than
+  // duplicated.
+  panelPosition: string;
+};
+
 // Same idea as buildAsBuiltFormData, but scoped to exactly one folder's own
 // (direct, non-recursive) photos -- used when "Save to OneDrive" is
 // triggered from a single device/panel folder page (e.g. PG-0906) rather
 // than the whole project or the whole As Built Drawings site. Mirrors
 // backup-folder route's own photo-upload scope exactly (folder.photos, no
-// descending into subfolders), so the Excel this produces reflects only
-// the drawings that specific action just uploaded.
+// descending into subfolders), so the rows this produces reflect only the
+// drawings that specific action just uploaded.
 //
-// Deliberate tradeoff, confirmed with the user: this means the shared
-// OneDrive file only ever shows whichever folder was most recently saved
-// from with this route -- other folders' rows won't reappear until
-// someone saves from them again, or uses the whole-project/whole-site
-// "Save to OneDrive" (which still calls buildAsBuiltFormData above and
-// includes everything). The form is always freshly regenerated from the
-// database on every save either way -- never patched/merged from
-// whatever happened to already be sitting in OneDrive.
+// Callers are expected to MERGE these rows into whatever's already saved
+// for other folders (see readAsBuiltRows in lib/asBuiltExcel.ts and
+// backup-folder's route) rather than upload this in isolation -- on its
+// own this would make the shared file forget every other folder.
 //
 // Returns null if the folder doesn't exist, isn't part of As Built
 // Drawings, or sits under "Highlighted Drawings" (annotated copies aren't
 // their own submittal-form entries -- see the matching exclusion above).
-export async function buildAsBuiltFormDataForFolder(folderId: string): Promise<AsBuiltFormData | null> {
+export async function buildAsBuiltFormDataForFolder(folderId: string): Promise<FolderAsBuiltFormData | null> {
   const folder = await prisma.folder.findUnique({
     where: { id: folderId },
     include: {
@@ -184,5 +189,5 @@ export async function buildAsBuiltFormDataForFolder(folderId: string): Promise<A
       cause: "",
     }));
 
-  return { header: buildHeader(folder.project), rows };
+  return { header: buildHeader(folder.project), rows, panelPosition };
 }
