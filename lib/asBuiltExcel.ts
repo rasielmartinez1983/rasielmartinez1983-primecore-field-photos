@@ -155,20 +155,61 @@ function setCellValue(sheetXml: string, coord: string, value: string): string {
 }
 
 // Reads one cell's current value back out of worksheet XML -- the inverse
-// of setCellValue. Handles both the inline-string cells this module writes
-// (t="inlineStr"><is><t>...) and the plain numeric/empty cells the
-// template ships with (t="n"><v>...), returning "" for a cell that's
-// empty, self-closing, or not present at all.
-function getCellValue(sheetXml: string, coord: string): string {
-  const cellPattern = new RegExp(`<c r="${coord}"[^>]*?(?:/>|>([\\s\\S]*?)</c>)`);
+// of setCellValue. Handles every cell type that can actually show up here:
+//   - t="inlineStr"><is><t>...  -- what this module itself always writes.
+//   - t="s"><v>N</v>            -- a shared-string INDEX, not literal text.
+//     Real Microsoft Excel converts inline strings to shared strings the
+//     moment it resaves a file (e.g. the user opens the OneDrive copy, or
+//     OneDrive/Excel's AutoSave touches it) -- any file this reads back
+//     that's been through Excel will use this form. N must be resolved
+//     against xl/sharedStrings.xml's <si> list (sharedStrings param) to get
+//     the real text; treating N itself as the value (the previous bug here)
+//     silently produces garbage like "29" instead of "PG-0906".
+//   - t="n" or untyped><v>...   -- plain numeric/empty cells the template
+//     ships with.
+// Returns "" for a cell that's empty, self-closing, or not present at all.
+function getCellValue(sheetXml: string, coord: string, sharedStrings: string[]): string {
+  const cellPattern = new RegExp(`<c r="${coord}"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)`);
   const match = sheetXml.match(cellPattern);
-  const inner = match?.[1];
+  if (!match) return "";
+  const attrs = match[1] || "";
+  const inner = match[2];
   if (!inner) return "";
+
+  const typeMatch = attrs.match(/\st="([^"]+)"/);
+  const cellType = typeMatch ? typeMatch[1] : "";
+
+  if (cellType === "s") {
+    const valueMatch = inner.match(/<v>([\s\S]*?)<\/v>/);
+    if (!valueMatch) return "";
+    const idx = Number(valueMatch[1]);
+    return Number.isInteger(idx) ? sharedStrings[idx] ?? "" : "";
+  }
+
   const inlineMatch = inner.match(/<t[^>]*>([\s\S]*?)<\/t>/);
   if (inlineMatch) return xmlUnescape(inlineMatch[1]);
   const valueMatch = inner.match(/<v>([\s\S]*?)<\/v>/);
   if (valueMatch) return xmlUnescape(valueMatch[1]);
   return "";
+}
+
+// Parses xl/sharedStrings.xml (present once real Excel has resaved a file)
+// into an index-ordered array of plain text, one entry per <si>. An <si>
+// can hold multiple <t> runs (rich text broken into separate formatting
+// runs) -- concatenated in order, since a shared-string cell always refers
+// to the whole entry, not one run. Returns [] if the workbook has no
+// sharedStrings part at all (true of every file this module generates
+// itself, which only ever writes inline strings).
+async function readSharedStrings(zip: JSZip): Promise<string[]> {
+  const file = zip.file("xl/sharedStrings.xml");
+  if (!file) return [];
+  const xml = await file.async("string");
+  const strings: string[] = [];
+  for (const siMatch of xml.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
+    const runs = [...siMatch[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((t) => xmlUnescape(t[1]));
+    strings.push(runs.join(""));
+  }
+  return strings;
 }
 
 function fillSheetXml(sheetXml: string, header: AsBuiltHeader, pageRows: AsBuiltRow[]): string {
@@ -304,6 +345,7 @@ export async function readAsBuiltRows(buffer: Buffer): Promise<AsBuiltRow[]> {
   const zip = await JSZip.loadAsync(buffer);
   const workbookXml = await readZipPart(zip, "xl/workbook.xml");
   const relsXml = await readZipPart(zip, "xl/_rels/workbook.xml.rels");
+  const sharedStrings = await readSharedStrings(zip);
 
   // Attribute order isn't consistent across entries in this file: the
   // template's own original relationships (rId1-4, written by openpyxl)
@@ -350,10 +392,10 @@ export async function readAsBuiltRows(buffer: Buffer): Promise<AsBuiltRow[]> {
       }
       const [drawingCol, sheetCol, panelCol, causeCol] = cols;
       const row: AsBuiltRow = {
-        drawingNumber: getCellValue(sheetXml, `${drawingCol}${r}`),
-        sheetNumber: getCellValue(sheetXml, `${sheetCol}${r}`),
-        panelPosition: getCellValue(sheetXml, `${panelCol}${r}`),
-        cause: getCellValue(sheetXml, `${causeCol}${r}`),
+        drawingNumber: getCellValue(sheetXml, `${drawingCol}${r}`, sharedStrings),
+        sheetNumber: getCellValue(sheetXml, `${sheetCol}${r}`, sharedStrings),
+        panelPosition: getCellValue(sheetXml, `${panelCol}${r}`, sharedStrings),
+        cause: getCellValue(sheetXml, `${causeCol}${r}`, sharedStrings),
       };
       if (row.drawingNumber || row.sheetNumber || row.panelPosition || row.cause) {
         rows.push(row);
