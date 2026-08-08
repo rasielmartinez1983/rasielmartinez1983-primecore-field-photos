@@ -167,13 +167,14 @@ function setRowCells(ws: ExcelJS.Worksheet, pageRows: AsBuiltRow[]) {
 export async function fillAsBuiltForm(header: AsBuiltHeader, rows: AsBuiltRow[]): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const templateBytes = await fs.readFile(TEMPLATE_PATH);
-  // exceljs's bundled type declarations predate the newer generic
-  // Buffer<ArrayBufferLike> shape @types/node now returns from
-  // fs.readFile() (it added maxByteLength/resizable/resize/detached etc.),
-  // so TS sees them as structurally incompatible even though this is a
-  // real Node Buffer at runtime, which is all xlsx.load() actually needs.
-  // The cast-through-unknown just satisfies the compiler.
-  await workbook.xlsx.load(templateBytes as unknown as Buffer);
+  // exceljs resolves its own (older) copy of @types/node's Buffer type,
+  // separate from the one this project's fs.readFile() returns -- `as
+  // unknown as Buffer` didn't help here because "Buffer" still resolves to
+  // the SAME modern generic type within this file, so the cast was a
+  // no-op. `as any` is the one cast that actually sidesteps the
+  // structural check between two same-named-but-different Buffer
+  // declarations; this is still a real Node Buffer at runtime either way.
+  await workbook.xlsx.load(templateBytes as any);
 
   const baseWs = workbook.getWorksheet(SHEET_NAME);
   if (!baseWs) {
@@ -195,5 +196,5 @@ export async function fillAsBuiltForm(header: AsBuiltHeader, rows: AsBuiltRow[])
   });
 
   const buffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buffer);
+  return Buffer.from(buffer as any);
 }
