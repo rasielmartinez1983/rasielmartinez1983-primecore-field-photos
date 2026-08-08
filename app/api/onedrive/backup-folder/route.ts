@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForPath } from "@/lib/filename";
 import { uploadFile, getItem, downloadFile } from "@/lib/msGraph";
-import { findProjectFolderPath } from "@/lib/projectFolder";
+import { findProjectFolderPath, resolveSubfolderPath } from "@/lib/projectFolder";
 import { fillAsBuiltForm, readAsBuiltRows, type AsBuiltRow } from "@/lib/asBuiltExcel";
 import { buildAsBuiltFormDataForFolder } from "@/lib/asBuiltRows";
 
@@ -44,7 +44,9 @@ export async function POST(req: NextRequest) {
   }
   // As Built Drawings is its own top-level folder, a sibling of AMPS, not
   // nested inside it -- see backup-project's route for the full rationale.
-  const backupRoot = folder.area === AS_BUILT_AREA ? matchedFolder : `${matchedFolder}/AMPS`;
+  const backupRoot = folder.area === AS_BUILT_AREA
+    ? await resolveSubfolderPath(matchedFolder, AS_BUILT_AREA)
+    : await resolveSubfolderPath(matchedFolder, "AMPS");
 
   // Matches backup-project's folderPath() -- Area/Folder/Subfolder as
   // separate path segments, same as the local "save to folder" export,
@@ -102,7 +104,10 @@ export async function POST(req: NextRequest) {
     try {
       const formData = await buildAsBuiltFormDataForFolder(folder.id);
       if (formData) {
-        const excelPath = `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`;
+        // backupRoot was already resolved above for this exact case
+        // (folder.area === AS_BUILT_AREA) -- reuse it instead of resolving
+        // the same subfolder a second time.
+        const excelPath = `${backupRoot}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`;
 
         let otherFolderRows: AsBuiltRow[] = [];
         try {

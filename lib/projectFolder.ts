@@ -24,7 +24,7 @@
 // already been created. Listing children reads the live folder structure
 // directly, so a folder created seconds ago is found immediately.
 
-import { listFolder } from "./msGraph";
+import { listFolder, getItem } from "./msGraph";
 
 // Returns the drive-relative path of the matching project folder (e.g.
 // "Projectos 2026/2451_FPL_Clover Substation_2026-08-05"), or null if
@@ -83,4 +83,43 @@ export async function findProjectFolderPath(name: string): Promise<string | null
     return a.folder.length - b.folder.length;
   });
   return candidates[0].path;
+}
+
+// ops.primecore now names each of a project's subfolders
+// "<Client>_<Substation>_<Type>_<Date>" (e.g. "FPL_Sheridan_AMPS_2026-08-05")
+// instead of the old plain type name ("AMPS") -- see the matching change
+// in primecore-ops-local's lib/projectFolder.ts (subfolderName). That's
+// new-projects-only, so an already-existing project's subfolders are still
+// plain. Rather than re-deriving Client/Substation from field-photos' own
+// (separate) database -- which could drift from what ops.primecore actually
+// used -- this pulls them straight out of the matched project folder's own
+// name, guaranteeing an exact match whenever that folder does use the
+// 5-segment new format. Returns null (caller should use the plain name
+// instead) for the legacy 4-segment format, which predates Substation
+// entirely and therefore can't have gotten new-format subfolders either.
+function newFormatSubfolderName(projectFolderName: string, type: string): string | null {
+  const parts = projectFolderName.split("_");
+  if (parts.length < 5) return null;
+  const client = parts[1];
+  const substation = parts[2];
+  const date = parts[parts.length - 1];
+  return `${client}_${substation}_${type}_${date}`;
+}
+
+// Resolves the actual on-disk path of one of a project's subfolders
+// (matchedFolderPath is findProjectFolderPath's result, the project's own
+// folder). Tries the new Client_Substation_Type_Date name first (the
+// common case for any project created after that change shipped), falling
+// back to the old plain type name otherwise -- see newFormatSubfolderName
+// above. If neither exists yet, returns the plain path (matches this
+// route's own long-standing behavior for a folder OneDrive will create on
+// first upload into it).
+export async function resolveSubfolderPath(matchedFolderPath: string, type: string): Promise<string> {
+  const folderName = matchedFolderPath.split("/").pop() || "";
+  const newName = newFormatSubfolderName(folderName, type);
+  if (newName) {
+    const newPath = `${matchedFolderPath}/${newName}`;
+    if (await getItem(newPath)) return newPath;
+  }
+  return `${matchedFolderPath}/${type}`;
 }

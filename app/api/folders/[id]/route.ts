@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForPath } from "@/lib/filename";
-import { findProjectFolderPath } from "@/lib/projectFolder";
+import { findProjectFolderPath, resolveSubfolderPath } from "@/lib/projectFolder";
 import { renameItem } from "@/lib/msGraph";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -81,7 +81,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           parts.unshift(sanitizeForPath(folder.parent.name));
           if (folder.parent.parent) parts.unshift(sanitizeForPath(folder.parent.parent.name));
         }
-        const oldPath = `${matchedProjectFolder}/AMPS/${sanitizeForPath(folder.area)}/${parts.join("/")}`;
+        const ampsPath = await resolveSubfolderPath(matchedProjectFolder, "AMPS");
+        const oldPath = `${ampsPath}/${sanitizeForPath(folder.area)}/${parts.join("/")}`;
         await renameItem(oldPath, sanitizeForPath(name));
       }
     } catch (err) {

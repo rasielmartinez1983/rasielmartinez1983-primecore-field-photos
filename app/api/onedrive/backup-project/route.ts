@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sanitizeForPath } from "@/lib/filename";
 import { uploadFile } from "@/lib/msGraph";
-import { findProjectFolderPath } from "@/lib/projectFolder";
+import { findProjectFolderPath, resolveSubfolderPath } from "@/lib/projectFolder";
 import { fillAsBuiltForm } from "@/lib/asBuiltExcel";
 import { buildAsBuiltFormData } from "@/lib/asBuiltRows";
 
@@ -77,6 +77,19 @@ export async function POST(req: NextRequest) {
   let lastError = "";
   const usedNames = new Map<string, Set<string>>();
 
+  // resolveSubfolderPath makes a Graph call -- cache the two possible
+  // roots (AMPS, As Built Drawings) instead of re-resolving once per
+  // photo.
+  const rootCache = new Map<string, string>();
+  const resolveRoot = async (type: string): Promise<string> => {
+    let root = rootCache.get(type);
+    if (!root) {
+      root = await resolveSubfolderPath(matchedFolder, type);
+      rootCache.set(type, root);
+    }
+    return root;
+  };
+
   for (const folder of folders) {
     const relPath = folderPath(folder);
     if (!usedNames.has(relPath)) usedNames.set(relPath, new Set());
@@ -96,7 +109,7 @@ export async function POST(req: NextRequest) {
         // As Built Drawings is its own top-level folder (relPath already
         // starts with "As Built Drawings/..."); everything else nests
         // under AMPS like it always has.
-        const backupRoot = folder.area === AS_BUILT_AREA ? matchedFolder : `${matchedFolder}/AMPS`;
+        const backupRoot = await resolveRoot(folder.area === AS_BUILT_AREA ? AS_BUILT_AREA : "AMPS");
         const onedrivePath = `${backupRoot}/${relPath}/${name}`;
         const contentType = name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg";
         await uploadFile(onedrivePath, buffer, contentType);
@@ -134,8 +147,9 @@ export async function POST(req: NextRequest) {
       const formData = await buildAsBuiltFormData(project.id);
       if (formData && formData.rows.length > 0) {
         const buffer = await fillAsBuiltForm(formData.header, formData.rows);
+        const asBuiltRoot = await resolveRoot(AS_BUILT_AREA);
         await uploadFile(
-          `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
+          `${asBuiltRoot}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
           buffer,
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         );
