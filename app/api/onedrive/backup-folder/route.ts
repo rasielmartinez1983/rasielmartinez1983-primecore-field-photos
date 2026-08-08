@@ -3,8 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { sanitizeForPath } from "@/lib/filename";
 import { uploadFile } from "@/lib/msGraph";
 import { findProjectFolderPath } from "@/lib/projectFolder";
+import { fillAsBuiltForm } from "@/lib/asBuiltExcel";
+import { buildAsBuiltFormData } from "@/lib/asBuiltRows";
 
 const AS_BUILT_AREA = "As Built Drawings";
+const AS_BUILT_FORM_FILENAME = "As-Built Submittal Form.xlsx";
 
 // Manual "Save to OneDrive" for a single folder -- same idea as
 // backup-project, just scoped to one folder's own photos (flat, no
@@ -80,5 +83,28 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ uploaded, failed, lastError: failed > 0 ? lastError : undefined });
+  // This folder is part of As Built Drawings -- regenerate the whole
+  // project's As-Built Submittal Form .xlsx (every drawing currently
+  // saved anywhere under As Built Drawings, not just this one folder) and
+  // drop it at the top of the project's As Built Drawings folder. Same
+  // best-effort/fail-soft behavior as backup-project's route.
+  let excelError: string | undefined;
+  if (folder.area === AS_BUILT_AREA) {
+    try {
+      const formData = await buildAsBuiltFormData(folder.project.id);
+      if (formData && formData.rows.length > 0) {
+        const buffer = await fillAsBuiltForm(formData.header, formData.rows);
+        await uploadFile(
+          `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
+          buffer,
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+      }
+    } catch (e) {
+      excelError = e instanceof Error ? e.message : String(e);
+      console.error(`As-Built Submittal Form generation failed for project ${folder.project.id}:`, e);
+    }
+  }
+
+  return NextResponse.json({ uploaded, failed, lastError: failed > 0 ? lastError : undefined, excelError });
 }

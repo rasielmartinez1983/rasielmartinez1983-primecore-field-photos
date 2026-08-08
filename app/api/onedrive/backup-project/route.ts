@@ -3,8 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { sanitizeForPath } from "@/lib/filename";
 import { uploadFile } from "@/lib/msGraph";
 import { findProjectFolderPath } from "@/lib/projectFolder";
+import { fillAsBuiltForm } from "@/lib/asBuiltExcel";
+import { buildAsBuiltFormData } from "@/lib/asBuiltRows";
 
 const AS_BUILT_AREA = "As Built Drawings";
+const AS_BUILT_FORM_FILENAME = "As-Built Submittal Form.xlsx";
 
 // Manual "Save to OneDrive" action -- NOT automatic. Uploads photos to
 // OneDrive, the exact same structure the "save to folder on this
@@ -112,5 +115,37 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ uploaded, failed, projectFolderName, lastError: failed > 0 ? lastError : undefined });
+  // Whenever As Built Drawings is part of this backup (either a whole-
+  // project backup, or the As Built Drawings site's own "Save to
+  // OneDrive" button), regenerate the As-Built Submittal Form .xlsx from
+  // scratch off whatever's currently saved and drop it at the top of the
+  // project's As Built Drawings folder -- a sibling of the drawing
+  // subfolders, not inside any of them. Best-effort: a failure here never
+  // touches the uploaded/failed counts above (the actual drawing PDFs are
+  // the thing that matters most), just gets its own error field.
+  let excelError: string | undefined;
+  if (!area || area === AS_BUILT_AREA) {
+    try {
+      const formData = await buildAsBuiltFormData(project.id);
+      if (formData && formData.rows.length > 0) {
+        const buffer = await fillAsBuiltForm(formData.header, formData.rows);
+        await uploadFile(
+          `${matchedFolder}/${AS_BUILT_AREA}/${AS_BUILT_FORM_FILENAME}`,
+          buffer,
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        );
+      }
+    } catch (e) {
+      excelError = e instanceof Error ? e.message : String(e);
+      console.error(`As-Built Submittal Form generation failed for project ${project.id}:`, e);
+    }
+  }
+
+  return NextResponse.json({
+    uploaded,
+    failed,
+    projectFolderName,
+    lastError: failed > 0 ? lastError : undefined,
+    excelError,
+  });
 }

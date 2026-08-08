@@ -95,10 +95,11 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
         setOneDriveStatus(data.lastError || `${areaLabel(area)} doesn't have any photos yet.`);
         return;
       }
+      const excelNote = data.excelError ? ` (As-Built Submittal Form did not update: ${data.excelError})` : "";
       setOneDriveStatus(
-        data.failed > 0
+        (data.failed > 0
           ? `Uploaded ${data.uploaded}, ${data.failed} failed${data.lastError ? `: ${data.lastError}` : ""}`
-          : `Uploaded ${data.uploaded} photo${data.uploaded === 1 ? "" : "s"} to OneDrive.`
+          : `Uploaded ${data.uploaded} photo${data.uploaded === 1 ? "" : "s"} to OneDrive.`) + excelNote
       );
     } catch {
       setOneDriveStatus("Could not connect. Try again.");
