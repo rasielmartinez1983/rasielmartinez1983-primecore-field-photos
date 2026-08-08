@@ -4,7 +4,7 @@ import { sanitizeForPath } from "@/lib/filename";
 import { uploadFile } from "@/lib/msGraph";
 import { findProjectFolderPath } from "@/lib/projectFolder";
 import { fillAsBuiltForm } from "@/lib/asBuiltExcel";
-import { buildAsBuiltFormData } from "@/lib/asBuiltRows";
+import { buildAsBuiltFormDataForFolder } from "@/lib/asBuiltRows";
 
 const AS_BUILT_AREA = "As Built Drawings";
 const AS_BUILT_FORM_FILENAME = "As-Built Submittal Form.xlsx";
@@ -83,23 +83,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // This folder is part of As Built Drawings -- regenerate the whole
-  // project's As-Built Submittal Form .xlsx (every drawing currently
-  // saved anywhere under As Built Drawings, not just this one folder).
-  // This is what makes saves "accumulate": the DB keeps every photo from
-  // every folder that's ever been saved, so pulling the whole project's
-  // current state -- rather than just this one folder's photos -- means
-  // saving PG-0906 today and PG-213 tomorrow both end up reflected in the
-  // one shared file, in whatever order they were actually saved in, with
-  // nothing lost from folders you saved earlier and aren't touching right
-  // now. Dropped inside the site's default "As Built Drawings" subfolder,
-  // a sibling of the actual panel/drawing folders -- see the matching
-  // comment in backup-project's route for the full nesting rationale.
-  // Same best-effort/fail-soft behavior as backup-project's route.
+  // This folder is part of As Built Drawings -- regenerate the As-Built
+  // Submittal Form .xlsx scoped to ONLY this folder's own drawings (see
+  // buildAsBuiltFormDataForFolder), matching the same scope as the photo
+  // upload loop above. Confirmed with the user: this means the shared
+  // file always reflects whichever folder was most recently saved from
+  // here -- use the project's or the As Built Drawings site's own "Save
+  // to OneDrive" button (backup-project's route, which pulls the whole
+  // project via buildAsBuiltFormData) to get every folder back into one
+  // file. Dropped inside the site's default "As Built Drawings"
+  // subfolder, a sibling of the actual panel/drawing folders -- see the
+  // matching comment in backup-project's route for the full nesting
+  // rationale. Same best-effort/fail-soft behavior as backup-project's
+  // route.
   let excelError: string | undefined;
   if (folder.area === AS_BUILT_AREA) {
     try {
-      const formData = await buildAsBuiltFormData(folder.project.id);
+      const formData = await buildAsBuiltFormDataForFolder(folder.id);
       if (formData && formData.rows.length > 0) {
         const buffer = await fillAsBuiltForm(formData.header, formData.rows);
         await uploadFile(

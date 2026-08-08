@@ -135,3 +135,54 @@ export async function buildAsBuiltFormData(projectId: string): Promise<AsBuiltFo
 
   return { header: buildHeader(project), rows: sources.map((s) => s.row) };
 }
+
+// Same idea as buildAsBuiltFormData, but scoped to exactly one folder's own
+// (direct, non-recursive) photos -- used when "Save to OneDrive" is
+// triggered from a single device/panel folder page (e.g. PG-0906) rather
+// than the whole project or the whole As Built Drawings site. Mirrors
+// backup-folder route's own photo-upload scope exactly (folder.photos, no
+// descending into subfolders), so the Excel this produces reflects only
+// the drawings that specific action just uploaded.
+//
+// Deliberate tradeoff, confirmed with the user: this means the shared
+// OneDrive file only ever shows whichever folder was most recently saved
+// from with this route -- other folders' rows won't reappear until
+// someone saves from them again, or uses the whole-project/whole-site
+// "Save to OneDrive" (which still calls buildAsBuiltFormData above and
+// includes everything). The form is always freshly regenerated from the
+// database on every save either way -- never patched/merged from
+// whatever happened to already be sitting in OneDrive.
+//
+// Returns null if the folder doesn't exist, isn't part of As Built
+// Drawings, or sits under "Highlighted Drawings" (annotated copies aren't
+// their own submittal-form entries -- see the matching exclusion above).
+export async function buildAsBuiltFormDataForFolder(folderId: string): Promise<AsBuiltFormData | null> {
+  const folder = await prisma.folder.findUnique({
+    where: { id: folderId },
+    include: {
+      project: true,
+      photos: true,
+      parent: { include: { parent: true } }, // two levels up covers every real case, same as backup-folder's route
+    },
+  });
+  if (!folder || folder.area !== AS_BUILT_AREA) return null;
+
+  let topAncestorName = folder.name;
+  if (folder.parent) {
+    topAncestorName = folder.parent.name;
+    if (folder.parent.parent) topAncestorName = folder.parent.parent.name;
+  }
+  if (topAncestorName === "Highlighted Drawings") return null;
+
+  const panelPosition = DEFAULT_CONTAINER_NAMES.has(folder.name) ? "" : folder.name;
+  const rows: AsBuiltRow[] = [...folder.photos]
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+    .map((photo) => ({
+      drawingNumber: extractDrawingNumber(photo.filename),
+      sheetNumber: extractSheetNumber(photo.filename),
+      panelPosition,
+      cause: "",
+    }));
+
+  return { header: buildHeader(folder.project), rows };
+}
