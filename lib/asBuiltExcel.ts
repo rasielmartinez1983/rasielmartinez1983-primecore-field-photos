@@ -167,7 +167,13 @@ function setRowCells(ws: ExcelJS.Worksheet, pageRows: AsBuiltRow[]) {
 export async function fillAsBuiltForm(header: AsBuiltHeader, rows: AsBuiltRow[]): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const templateBytes = await fs.readFile(TEMPLATE_PATH);
-  await workbook.xlsx.load(templateBytes);
+  // exceljs's bundled type declarations predate the newer generic
+  // Buffer<ArrayBufferLike> shape @types/node now returns from
+  // fs.readFile() (it added maxByteLength/resizable/resize/detached etc.),
+  // so TS sees them as structurally incompatible even though this is a
+  // real Node Buffer at runtime, which is all xlsx.load() actually needs.
+  // The cast-through-unknown just satisfies the compiler.
+  await workbook.xlsx.load(templateBytes as unknown as Buffer);
 
   const baseWs = workbook.getWorksheet(SHEET_NAME);
   if (!baseWs) {
