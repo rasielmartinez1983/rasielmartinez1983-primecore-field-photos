@@ -12,6 +12,8 @@ import { prisma } from "@/lib/prisma";
 //
 // Authenticated the same way as the other /api/internal/* routes --
 // shared x-internal-api-key header, see middleware.ts's exemption.
+const AS_BUILT_AREA = "As Built Drawings";
+
 export async function GET(req: NextRequest) {
   const key = req.headers.get("x-internal-api-key");
   if (!key || !process.env.OPS_INTERNAL_API_KEY || key !== process.env.OPS_INTERNAL_API_KEY) {
@@ -33,8 +35,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ names: [] });
   }
 
+  // Yard/House only -- excludes the "As Built Drawings" site's own
+  // top-level folders ("As Built Drawings", "Highlighted Drawings",
+  // see areaLabel.ts). Those aren't device/panel photo folders, so they
+  // have no business showing up in a device card's rename picker; before
+  // this filter, adding that site (see AS_BUILT_AREA callers across this
+  // app) meant its two default folder names started polluting every
+  // project's Yard/House suggestion list.
   const folders = await prisma.folder.findMany({
-    where: { projectId: project.id },
+    where: { projectId: project.id, area: { not: AS_BUILT_AREA } },
     select: { name: true },
   });
 
