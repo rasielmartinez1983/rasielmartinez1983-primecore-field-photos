@@ -21,16 +21,31 @@ export async function GET(req: NextRequest) {
   }
 
   const projectName = (req.nextUrl.searchParams.get("project") || "").trim();
-  if (!projectName) {
+  const substation = (req.nextUrl.searchParams.get("substation") || "").trim();
+  if (!projectName && !substation) {
     return NextResponse.json({ error: "Missing project name.", names: [] }, { status: 400 });
   }
 
   // Same join key create-project/delete-project use -- Project.name has
   // no unique constraint, so this takes whichever matches first (in
   // practice there's only ever one project by a given name at a time).
-  const project = await prisma.project.findFirst({
-    where: { name: { equals: projectName, mode: "insensitive" } },
-  });
+  //
+  // Falls back to matching substationName if the name lookup comes up
+  // empty -- ExcelApp's project_data.folder_name doesn't reliably equal
+  // this app's Project.name (same fragile cross-app join documented in
+  // ops_local_client.fetch_project_address), so a real project with
+  // existing Yard/House folders could otherwise silently return zero
+  // names and show "No matching folders" even though folders exist.
+  let project = projectName
+    ? await prisma.project.findFirst({
+        where: { name: { equals: projectName, mode: "insensitive" } },
+      })
+    : null;
+  if (!project && substation) {
+    project = await prisma.project.findFirst({
+      where: { substationName: { equals: substation, mode: "insensitive" } },
+    });
+  }
   if (!project) {
     return NextResponse.json({ names: [] });
   }
