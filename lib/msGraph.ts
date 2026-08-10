@@ -58,6 +58,34 @@ async function getGraphAccessToken(): Promise<string> {
   return cachedToken.token;
 }
 
+let cachedSiteDriveId: string | null = null;
+
+// Resolves MICROSOFT_SHAREPOINT_SITE's default document library drive ID
+// once per process and caches it. Graph does NOT reliably support
+// combining the colon-addressed site path (".../sites/{host}:{path}:")
+// with a second colon-addressed item path ("root:/{item path}:") in the
+// same URL -- that combination came back 400 "Url specified is invalid" /
+// "Resource not found for the segment 'root:'" in production even though
+// each piece is individually documented. Resolving the site's actual
+// drive ID (a plain, non-colon identifier) once up front and using
+// "/drives/{id}/..." for everything else sidesteps that entirely -- see
+// the matching fix in primecore-ops-local/lib/msGraph.ts.
+async function resolveSiteDriveId(site: string): Promise<string> {
+  if (cachedSiteDriveId) return cachedSiteDriveId;
+  const token = await getGraphAccessToken();
+  const res = await fetch(`${GRAPH_BASE}/sites/${site}:/drive?$select=id`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`Failed to resolve SharePoint site drive ("${site}"): ${res.status} ${detail}`);
+  }
+  const data = await res.json();
+  if (!data.id) throw new Error(`SharePoint site drive lookup for "${site}" returned no id.`);
+  cachedSiteDriveId = data.id as string;
+  return cachedSiteDriveId;
+}
+
 // Root of the one drive this app is allowed to touch. Prefers the shared
 // Teams/SharePoint site (MICROSOFT_SHAREPOINT_SITE, e.g.
 // "primecoreps.sharepoint.com:/sites/PrimecorePowerSolutions") so project
@@ -67,9 +95,12 @@ async function getGraphAccessToken(): Promise<string> {
 // ExcelApp's onedrive_backup.py -- all three read/write the same project
 // folders by name, so pointing only one of them at a different drive would
 // silently break cross-app file matching.
-function driveBase(): string {
+async function driveBase(): Promise<string> {
   const site = process.env.MICROSOFT_SHAREPOINT_SITE;
-  if (site) return `/sites/${site}:/drive`;
+  if (site) {
+    const driveId = await resolveSiteDriveId(site);
+    return `/drives/${driveId}`;
+  }
   const user = requiredEnv("MICROSOFT_ONEDRIVE_USER");
   return `/users/${encodeURIComponent(user)}/drive`;
 }
@@ -122,7 +153,7 @@ function toDriveItem(raw: any): DriveItem {
 // for the root folder.
 export async function listFolder(path: string = ""): Promise<DriveItem[]> {
   const suffix = path ? `root:/${encodeURIComponent(path).replace(/%2F/g, "/")}:/children` : "root/children";
-  const res = await graphFetch(`${driveBase()}/${suffix}?$select=id,name,folder,file,size,lastModifiedDateTime,@microsoft.graph.downloadUrl&$top=200`);
+  const res = await graphFetch(`${await driveBase()}/${suffix}?$select=id,name,folder,file,size,lastModifiedDateTime,@microsoft.graph.downloadUrl&$top=200`);
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(`OneDrive listFolder("${path}") failed: ${res.status} ${detail}`);
@@ -135,7 +166,7 @@ export async function listFolder(path: string = ""): Promise<DriveItem[]> {
 // (Graph's search is a fuzzy full-text match, not just a substring).
 export async function searchDrive(query: string): Promise<DriveItem[]> {
   const res = await graphFetch(
-    `${driveBase()}/root/search(q='${encodeURIComponent(query)}')?$select=id,name,folder,file,size,lastModifiedDateTime,@microsoft.graph.downloadUrl,parentReference&$top=50`
+    `${await driveBase()}/root/search(q='${encodeURIComponent(query)}')?$select=id,name,folder,file,size,lastModifiedDateTime,@microsoft.graph.downloadUrl,parentReference&$top=50`
   );
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
@@ -147,7 +178,7 @@ export async function searchDrive(query: string): Promise<DriveItem[]> {
 
 // Downloads a file's raw bytes by item id (from listFolder/searchDrive).
 export async function downloadFile(itemId: string): Promise<Buffer> {
-  const res = await graphFetch(`${driveBase()}/items/${itemId}/content`);
+  const res = await graphFetch(`${await driveBase()}/items/${itemId}/content`);
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     throw new Error(`OneDrive downloadFile("${itemId}") failed: ${res.status} ${detail}`);
@@ -167,7 +198,7 @@ export async function uploadFile(path: string, content: Buffer, contentType = "a
     throw new Error(`uploadFile("${path}"): ${content.byteLength} bytes exceeds the 4MB simple-upload limit.`);
   }
   const encodedPath = encodeURIComponent(path).replace(/%2F/g, "/");
-  const res = await graphFetch(`${driveBase()}/root:/${encodedPath}:/content`, {
+  const res = await graphFetch(`${await driveBase()}/root:/${encodedPath}:/content`, {
     method: "PUT",
     headers: { "Content-Type": contentType },
     body: content,
@@ -184,7 +215,7 @@ export async function uploadFile(path: string, content: Buffer, contentType = "a
 export async function getItem(path: string): Promise<DriveItem | null> {
   const encodedPath = encodeURIComponent(path).replace(/%2F/g, "/");
   const res = await graphFetch(
-    `${driveBase()}/root:/${encodedPath}?$select=id,name,folder,file,size,lastModifiedDateTime,parentReference`
+    `${await driveBase()}/root:/${encodedPath}?$select=id,name,folder,file,size,lastModifiedDateTime,parentReference`
   );
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -204,7 +235,7 @@ export async function getItem(path: string): Promise<DriveItem | null> {
 export async function renameItem(path: string, newName: string): Promise<DriveItem | null> {
   const item = await getItem(path);
   if (!item) return null;
-  const res = await graphFetch(`${driveBase()}/items/${item.id}`, {
+  const res = await graphFetch(`${await driveBase()}/items/${item.id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: newName }),
