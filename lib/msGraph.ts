@@ -58,8 +58,18 @@ async function getGraphAccessToken(): Promise<string> {
   return cachedToken.token;
 }
 
-// Root of the one OneDrive this app is allowed to touch.
+// Root of the one drive this app is allowed to touch. Prefers the shared
+// Teams/SharePoint site (MICROSOFT_SHAREPOINT_SITE, e.g.
+// "primecoreps.sharepoint.com:/sites/PrimecorePowerSolutions") so project
+// folders show up in the "General" channel everyone actually works out of,
+// falling back to the old personal-OneDrive drive if that env var isn't
+// set. Must stay in sync with the same fallback in primecore-ops-local and
+// ExcelApp's onedrive_backup.py -- all three read/write the same project
+// folders by name, so pointing only one of them at a different drive would
+// silently break cross-app file matching.
 function driveBase(): string {
+  const site = process.env.MICROSOFT_SHAREPOINT_SITE;
+  if (site) return `/sites/${site}:/drive`;
   const user = requiredEnv("MICROSOFT_ONEDRIVE_USER");
   return `/users/${encodeURIComponent(user)}/drive`;
 }

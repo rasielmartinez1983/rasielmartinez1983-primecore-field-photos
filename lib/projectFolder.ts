@@ -26,21 +26,31 @@
 
 import { listFolder, getItem } from "./msGraph";
 
+// Root folder inside the drive that everything else here lives under --
+// "General" is the actual folder name backing Teams' default channel (see
+// primecore-ops-local/lib/projectFolder.ts's sharepointRoot(), which this
+// mirrors). Must stay in sync with that app and with ExcelApp's
+// onedrive_backup.py, since all three find these same project folders by
+// name within this same root.
+function sharepointRoot(): string {
+  return process.env.MICROSOFT_SHAREPOINT_ROOT_FOLDER || "General";
+}
+
 // Returns the drive-relative path of the matching project folder (e.g.
-// "Projectos 2026/2451_FPL_Clover Substation_2026-08-05"), or null if
-// nothing matches.
+// "General/Projectos 2026/2451_FPL_Clover Substation_2026-08-05"), or null
+// if nothing matches.
 export async function findProjectFolderPath(name: string): Promise<string | null> {
   const target = name.trim().toLowerCase();
   if (!target) return null;
 
-  const root = await listFolder("");
+  const root = await listFolder(sharepointRoot());
   const yearFolders = root.filter((r) => r.isFolder && r.name.startsWith("Projectos "));
 
   const candidates: { path: string; folder: string; exact: boolean }[] = [];
   for (const yearFolder of yearFolders) {
     let children;
     try {
-      children = await listFolder(yearFolder.name);
+      children = await listFolder(`${sharepointRoot()}/${yearFolder.name}`);
     } catch {
       continue; // best-effort -- one bad/empty year folder shouldn't block the others
     }
@@ -58,17 +68,17 @@ export async function findProjectFolderPath(name: string): Promise<string | null
       // added are NOT renamed in OneDrive, so both are still matched.
       const parts = folderName.split("_");
       if (parts.length === 5 && parts[3].trim().toLowerCase() === target) {
-        candidates.push({ path: `${yearFolder.name}/${folderName}`, folder: folderName, exact: true });
+        candidates.push({ path: `${sharepointRoot()}/${yearFolder.name}/${folderName}`, folder: folderName, exact: true });
         continue;
       }
       if (parts.length === 4 && parts[2].trim().toLowerCase() === target) {
-        candidates.push({ path: `${yearFolder.name}/${folderName}`, folder: folderName, exact: true });
+        candidates.push({ path: `${sharepointRoot()}/${yearFolder.name}/${folderName}`, folder: folderName, exact: true });
         continue;
       }
 
       // Old format: "<year>-<Project#>-<Name>".
       if (folderName.toLowerCase().endsWith(`-${target}`)) {
-        candidates.push({ path: `${yearFolder.name}/${folderName}`, folder: folderName, exact: false });
+        candidates.push({ path: `${sharepointRoot()}/${yearFolder.name}/${folderName}`, folder: folderName, exact: false });
       }
     }
   }
