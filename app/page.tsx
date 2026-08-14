@@ -150,18 +150,20 @@ export default function HomePage() {
           <img src="/logo.png" alt="PrimeCore" className="app-logo" />
           {me && (
             <div className="app-header-user">
-              <span
-                className={`online-indicator${onlineUsers.length === 0 ? " none" : ""}`}
-                title={
-                  onlineUsers.length === 0
-                    ? "No one else is online right now"
-                    : `Online now: ${onlineUsers.map((u) => u.name || u.username).join(", ")}`
-                }
-              >
-                <span className="online-dot" />
-                {onlineUsers.length > 0 ? onlineUsers.length : ""}
+              {/* Own name's dot is static, not fetched -- if this page is
+                  open, we're online, no need to ask the server. Other
+                  online people each get their own name+dot chip -- no
+                  count, no tooltip text. */}
+              <span className="presence-chip">
+                <span className="presence-dot" />
+                {me.name || me.username}
               </span>
-              <span>{me.name || me.username}</span>
+              {onlineUsers.map((u) => (
+                <span className="presence-chip" key={u.id}>
+                  <span className="presence-dot" />
+                  {u.name || u.username}
+                </span>
+              ))}
               <a href="/settings/face-id" className="app-header-user-link">Set up Face ID</a>
               {me.isAdmin && (
                 <a href="/admin" className="app-header-user-link">Admin</a>
