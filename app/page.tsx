@@ -14,9 +14,12 @@ type Project = {
 
 type Me = { id: string; username: string; name: string | null; isAdmin: boolean } | null;
 
+type OnlineUser = { id: string; username: string; name: string | null };
+
 export default function HomePage() {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [me, setMe] = useState<Me>(null);
+  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
   const [creating, setCreating] = useState(false);
   const [substationName, setSubstationName] = useState("");
   const [name, setName] = useState("");
@@ -60,6 +63,32 @@ export default function HomePage() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
+
+  // "Who's online" presence indicator (same pattern as ops.primecore and
+  // ExcelApp) -- stamp our own lastSeenAt every ~30s, refresh who else is
+  // around every ~20s. Only runs once we know who "we" are.
+  useEffect(() => {
+    if (!me) return;
+
+    function heartbeat() {
+      fetch("/api/presence/heartbeat", { method: "POST" }).catch(() => {});
+    }
+    function refreshOnlineUsers() {
+      fetch("/api/presence/online")
+        .then((r) => r.json())
+        .then((data) => setOnlineUsers(data.users || []))
+        .catch(() => {});
+    }
+
+    heartbeat();
+    refreshOnlineUsers();
+    const heartbeatInterval = setInterval(heartbeat, 30000);
+    const refreshInterval = setInterval(refreshOnlineUsers, 20000);
+    return () => {
+      clearInterval(heartbeatInterval);
+      clearInterval(refreshInterval);
+    };
+  }, [me]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -121,6 +150,17 @@ export default function HomePage() {
           <img src="/logo.png" alt="PrimeCore" className="app-logo" />
           {me && (
             <div className="app-header-user">
+              <span
+                className={`online-indicator${onlineUsers.length === 0 ? " none" : ""}`}
+                title={
+                  onlineUsers.length === 0
+                    ? "No one else is online right now"
+                    : `Online now: ${onlineUsers.map((u) => u.name || u.username).join(", ")}`
+                }
+              >
+                <span className="online-dot" />
+                {onlineUsers.length > 0 ? onlineUsers.length : ""}
+              </span>
               <span>{me.name || me.username}</span>
               <a href="/settings/face-id" className="app-header-user-link">Set up Face ID</a>
               {me.isAdmin && (

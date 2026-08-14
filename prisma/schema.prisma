@@ -110,6 +110,11 @@ model User {
   createdAccessCodes AccessCode[] @relation("AccessCodeCreatedBy")
   usedAccessCode     AccessCode?  @relation("AccessCodeUsedBy")
   createdAt    DateTime  @default(now())
+  // Stamped by /api/presence/heartbeat (polled from the header while the
+  // app is open) -- powers the "who else is online right now" indicator
+  // next to the logout button. Null means "never seen online" (no
+  // account yet, or hasn't opened the app since this field was added).
+  lastSeenAt   DateTime?
 }
 
 // A one-time invite code an admin generates from /admin so a specific

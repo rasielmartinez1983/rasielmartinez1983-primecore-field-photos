@@ -149,6 +149,26 @@ header.app-header {
   text-decoration: underline;
 }
 
+.online-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #d0d5dd;
+  cursor: default;
+}
+
+.online-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7ec13f;
+  display: inline-block;
+}
+
+.online-indicator.none .online-dot {
+  background: #6b7280;
+}
+
 .app-header-left {
   justify-self: start;
 }
