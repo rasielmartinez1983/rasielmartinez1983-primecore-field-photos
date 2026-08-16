@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       substationName,
       client,
       date,
-      // Every project starts with the three standard sites. They're regular
+      // Every project starts with the four standard sites. They're regular
       // ProjectArea rows like any custom site, so they can be deleted (and
       // re-added later via "+ Add site") on a per-project basis. "As Built
       // Drawings" is handled the same way as Yard/House everywhere in this
@@ -52,18 +52,28 @@ export async function POST(req: NextRequest) {
       // app/api/photos/route.ts. Shown to the user as "As Built /
       // Highlighted Drawings" (see lib/areaLabel.ts) -- the area string
       // itself stays "As Built Drawings" everywhere it's actually matched
-      // on, only the on-screen label changed.
-      areas: { create: [{ name: "Yard" }, { name: "House" }, { name: "As Built Drawings" }] },
+      // on, only the on-screen label changed. "Project Photos" is plain
+      // Yard/House-style capture (no OCR/crop flow) -- it's just where
+      // final wrap-up photos of the finished job go once the project is
+      // Invoiced, so they can show up in the Primecore homepage's
+      // "Completed Projects" gallery (see /api/internal/project-photos)
+      // and get backed up into ops.primecore's own "Project Photos"
+      // OneDrive subfolder (see the onedrive/backup-* routes).
+      areas: { create: [{ name: "Yard" }, { name: "House" }, { name: "As Built Drawings" }, { name: "Project Photos" }] },
       // As Built Drawings starts with two default subfolders instead of
       // empty -- "As Built Drawings" for regular as-built scans and
       // "Highlighted Drawings" for marked-up ones. Both are ordinary
       // top-level folders (inherit area from their parent's area string,
       // same as any folder created by hand), so the crop/OCR/PDF/OneDrive
       // flow works inside them exactly like it does at the area root.
+      // Project Photos gets one default folder too, so there's somewhere
+      // to drop photos immediately instead of having to create a folder
+      // first.
       folders: {
         create: [
           { area: "As Built Drawings", name: "As Built Drawings" },
           { area: "As Built Drawings", name: "Highlighted Drawings" },
+          { area: "Project Photos", name: "Project Photos" },
         ],
       },
     },

@@ -8,14 +8,23 @@ import { buildAsBuiltFormData } from "@/lib/asBuiltRows";
 
 const AS_BUILT_AREA = "As Built Drawings";
 const AS_BUILT_FORM_FILENAME = "As-Built Submittal Form.xlsx";
+// Areas that back up into their OWN top-level OneDrive subfolder (a
+// sibling of AMPS, not nested inside it) instead of nesting under AMPS
+// like Yard/House/any custom site does -- see lib/projectFolder.ts in
+// ops-local, which eagerly creates one of these per entry in
+// SUBFOLDER_TYPES. "Project Photos" was added alongside "As Built
+// Drawings" so a project's final wrap-up photos land in their own
+// clearly-named OneDrive folder instead of getting buried under AMPS.
+const TOP_LEVEL_AREAS = [AS_BUILT_AREA, "Project Photos"];
 
 // Manual "Save to OneDrive" action -- NOT automatic. Uploads photos to
 // OneDrive, the exact same structure the "save to folder on this
 // computer" button already produces locally, split two ways:
 //   - Yard/House (and any other custom site): <project folder>/AMPS/<Area>/<Folder>/...
-//   - As Built Drawings: <project folder>/As Built Drawings/<Folder>/...
-//     (a sibling of AMPS, not nested inside it -- see lib/projectFolder.ts
-//     in ops-local, which eagerly creates both as top-level subfolders).
+//   - As Built Drawings / Project Photos: <project folder>/<Area>/<Folder>/...
+//     (each its own sibling of AMPS, not nested inside it -- see
+//     lib/projectFolder.ts in ops-local, which eagerly creates all of
+//     these as top-level subfolders).
 // The destination project folder is found by name (see
 // lib/projectFolder.ts) -- ops.primecore is the source of truth for where
 // each project's folder lives, since it auto-creates it on project
@@ -106,10 +115,10 @@ export async function POST(req: NextRequest) {
       try {
         const base64 = photo.dataUrl.split(",")[1] || "";
         const buffer = Buffer.from(base64, "base64");
-        // As Built Drawings is its own top-level folder (relPath already
-        // starts with "As Built Drawings/..."); everything else nests
-        // under AMPS like it always has.
-        const backupRoot = await resolveRoot(folder.area === AS_BUILT_AREA ? AS_BUILT_AREA : "AMPS");
+        // As Built Drawings/Project Photos are each their own top-level
+        // folder (relPath already starts with "<Area>/..."); everything
+        // else nests under AMPS like it always has.
+        const backupRoot = await resolveRoot(TOP_LEVEL_AREAS.includes(folder.area) ? folder.area : "AMPS");
         const onedrivePath = `${backupRoot}/${relPath}/${name}`;
         const contentType = name.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg";
         await uploadFile(onedrivePath, buffer, contentType);

@@ -238,7 +238,7 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
                 style={{ position: "relative" }}
               >
                 <div className="category-card-label" style={{ paddingRight: 4 }}>{areaLabel(s.name)}</div>
-                {s.name !== "Yard" && s.name !== "House" && s.name !== "As Built Drawings" && (
+                {s.name !== "Yard" && s.name !== "House" && s.name !== "As Built Drawings" && s.name !== "Project Photos" && (
                   <span
                     role="button"
                     aria-label={`Delete ${s.name}`}

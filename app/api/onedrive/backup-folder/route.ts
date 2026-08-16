@@ -8,6 +8,10 @@ import { buildAsBuiltFormDataForFolder } from "@/lib/asBuiltRows";
 
 const AS_BUILT_AREA = "As Built Drawings";
 const AS_BUILT_FORM_FILENAME = "As-Built Submittal Form.xlsx";
+// See the matching constant in onedrive/backup-project/route.ts -- areas
+// that get their own top-level OneDrive subfolder instead of nesting
+// under AMPS.
+const TOP_LEVEL_AREAS = [AS_BUILT_AREA, "Project Photos"];
 
 // Manual "Save to OneDrive" for a single folder -- same idea as
 // backup-project, just scoped to one folder's own photos (flat, no
@@ -42,10 +46,11 @@ export async function POST(req: NextRequest) {
       lastError: `No matching project folder found in OneDrive for "${folder.project.name}". Make sure a project with this exact name exists in ops.primecore first.`,
     });
   }
-  // As Built Drawings is its own top-level folder, a sibling of AMPS, not
-  // nested inside it -- see backup-project's route for the full rationale.
-  const backupRoot = folder.area === AS_BUILT_AREA
-    ? await resolveSubfolderPath(matchedFolder, AS_BUILT_AREA)
+  // As Built Drawings/Project Photos are each their own top-level folder,
+  // a sibling of AMPS, not nested inside it -- see backup-project's route
+  // for the full rationale.
+  const backupRoot = TOP_LEVEL_AREAS.includes(folder.area)
+    ? await resolveSubfolderPath(matchedFolder, folder.area)
     : await resolveSubfolderPath(matchedFolder, "AMPS");
 
   // Matches backup-project's folderPath() -- Area/Folder/Subfolder as
