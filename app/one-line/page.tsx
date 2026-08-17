@@ -17,7 +17,11 @@ type OneLinePhoto = {
 // shared, since this page is intentionally standalone (see the comment on
 // OneLinePhoto in prisma/schema.prisma for why: it has to work before any
 // Project exists, so it can't reuse anything scoped to a project/folder).
-function resizeImageFile(file: File, maxDim = 1800, quality = 0.85): Promise<string> {
+// Tightened from 1800/0.85 -- a real phone photo at that setting still hit
+// Vercel's ~4.5MB request body limit for a detailed one-line print. 1400/0.75
+// leaves plenty of legibility margin for marking up devices while keeping
+// the payload comfortably under the limit.
+function resizeImageFile(file: File, maxDim = 1400, quality = 0.75): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error);
