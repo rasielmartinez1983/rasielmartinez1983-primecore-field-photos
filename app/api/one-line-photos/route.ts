@@ -29,10 +29,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing substation name or photo." }, { status: 400 });
   }
 
-  const photo = await prisma.oneLinePhoto.create({
-    data: { substationName, description, filename, dataUrl },
-  });
-  return NextResponse.json(photo);
+  try {
+    const photo = await prisma.oneLinePhoto.create({
+      data: { substationName, description, filename, dataUrl },
+    });
+    return NextResponse.json(photo);
+  } catch (err) {
+    // Surface a real reason instead of letting a generic 500/HTML error
+    // page reach the client (which made res.json() fail client-side and
+    // show a blank "Could not save the photo." with no way to diagnose).
+    console.error("one-line-photos POST failed:", err);
+    return NextResponse.json(
+      { error: "Server error saving the photo. If it's a large photo, try again -- it may be too big." },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(req: NextRequest) {

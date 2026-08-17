@@ -96,8 +96,8 @@ export default function OneLinePage() {
         body: JSON.stringify({ substationName: name, filename: file.name, dataUrl }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error || "Could not save the photo.");
+        const data = await res.json().catch(() => null);
+        setError(data?.error || `Could not save the photo (server said ${res.status}). Try again.`);
         return;
       }
       setSearchedFor(name);
