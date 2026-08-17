@@ -186,8 +186,17 @@ export default function HomePage() {
         <h1>Field Photos</h1>
         <p className="muted">Choose a project or create a new one.</p>
 
+        {/* Standalone -- not a project. Lets the substation's one-line
+            print get uploaded during the Bid stage, before a project even
+            exists (see OneLinePhoto in prisma/schema.prisma). Placed above
+            the project list/creation form on purpose, since this is meant
+            to be the first thing reached for that workflow. */}
+        <a href="/one-line" className="secondary-button" style={{ display: "block", textAlign: "center", marginTop: 14 }}>
+          📐 One Line
+        </a>
+
         {!creating && (
-          <button className="camera-button" style={{ marginTop: 14 }} onClick={() => setCreating(true)}>
+          <button className="camera-button" style={{ marginTop: 10 }} onClick={() => setCreating(true)}>
             + New project
           </button>
         )}

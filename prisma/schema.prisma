@@ -86,6 +86,27 @@ model FolderPreset {
   @@unique([area, name])
 }
 
+// A standalone library of substation one-line print photos, deliberately
+// NOT tied to a Project -- the print needs to go in here during the Bid
+// stage, before there's a Won project (a field-photos Project only gets
+// auto-created once a Bid is Won, see /api/internal/create-project). Keyed
+// by substation name (free text, matched case-insensitively against the
+// same substation names used in ops.primecore's Bid form) instead of a
+// foreign key, so it works before any project/bid record exists on either
+// side. Surfaced on the field-photos home page (see app/page.tsx) and
+// pulled into ops.primecore's Bid "Takeoff" tool via
+// /api/internal/one-line-photos.
+model OneLinePhoto {
+  id             String   @id @default(cuid())
+  substationName String
+  description    String? // optional free text, e.g. "2024 print"
+  filename       String
+  dataUrl        String
+  createdAt      DateTime @default(now())
+
+  @@index([substationName])
+}
+
 // A separate account per person (username + password), same idea as
 // PrimeCore Ops' Employee model but without the payroll/HR fields this app
 // doesn't need. Registration now requires a one-time access code (see
