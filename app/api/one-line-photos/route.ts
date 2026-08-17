@@ -38,9 +38,16 @@ export async function POST(req: NextRequest) {
     // Surface a real reason instead of letting a generic 500/HTML error
     // page reach the client (which made res.json() fail client-side and
     // show a blank "Could not save the photo." with no way to diagnose).
-    console.error("one-line-photos POST failed:", err);
+    // TEMP: including err.message + payload size in the response itself
+    // (not just server logs) so we can diagnose without Vercel log access --
+    // the previous "it may be too big" text was a guess, not a confirmed
+    // cause. Safe to expose here: this route sits behind field-photos'
+    // session login, not public.
+    const sizeKB = Math.round(dataUrl.length / 1024);
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`one-line-photos POST failed (payload ${sizeKB}KB):`, err);
     return NextResponse.json(
-      { error: "Server error saving the photo. If it's a large photo, try again -- it may be too big." },
+      { error: `Server error saving the photo (payload ${sizeKB}KB): ${detail}` },
       { status: 500 }
     );
   }
