@@ -73,7 +73,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "image is required" }, { status: 400 });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // .trim(): a stray trailing newline/space from pasting the key into
+  // Vercel's env var field breaks the request with a misleading generic
+  // connection error otherwise -- confirmed against a real deploy of this
+  // same key in ExcelApp/Render (see that app's app.py for the full story).
+  const apiKey = (process.env.ANTHROPIC_API_KEY || "").trim();
   if (!apiKey) {
     return NextResponse.json({ guessedName: null, guessedGroup: null, rawText: "" });
   }
