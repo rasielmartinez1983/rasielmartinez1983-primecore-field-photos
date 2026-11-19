@@ -20,10 +20,10 @@ function AmpPickerList({
   onPick: (name: string) => void;
 }) {
   if (loading) {
-    return <div className="amp-picker-list"><div className="amp-picker-empty">Loading names from ExcelApp…</div></div>;
+    return <div className="amp-picker-list"><div className="amp-picker-empty">Loading names from Projects-Documentation…</div></div>;
   }
   if (!names || names.length === 0) {
-    return <div className="amp-picker-list"><div className="amp-picker-empty">No names found in ExcelApp for this project yet.</div></div>;
+    return <div className="amp-picker-list"><div className="amp-picker-empty">No names found in Projects-Documentation for this project yet.</div></div>;
   }
   return (
     <div className="amp-picker-list">
@@ -367,7 +367,7 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
               onClick={() => openAmpPicker("rename")}
               disabled={!project?.name}
             >
-              📋 Choose from ExcelApp {ampPickerFor === "rename" ? "▴" : "▾"}
+              📋 Choose from Projects-Documentation {ampPickerFor === "rename" ? "▴" : "▾"}
             </button>
             {ampPickerFor === "rename" && (
               <AmpPickerList
@@ -466,7 +466,7 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
               onClick={() => openAmpPicker("add")}
               disabled={!project?.name}
             >
-              📋 Choose from ExcelApp {ampPickerFor === "add" ? "▴" : "▾"}
+              📋 Choose from Projects-Documentation {ampPickerFor === "add" ? "▴" : "▾"}
             </button>
             {ampPickerFor === "add" && (
               <AmpPickerList
