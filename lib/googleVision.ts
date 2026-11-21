@@ -67,13 +67,6 @@ async function getAccessToken(credentials: ServiceAccountCredentials): Promise<s
 // found no text, isn't configured, or the request failed -- callers treat
 // that the same as "couldn't guess a name" and fall back to letting the
 // person type one in.
-//
-// NOTE: as of the Claude-vision rewrite of
-// app/api/photos/detect-drawing-name/route.ts, this function no longer
-// has any callers in this repo -- kept here (rather than deleted) only
-// because detectTextBoundingBox below, which shares this file, was
-// explicitly asked to stay on Google Vision. Safe to remove later if
-// detectTextBoundingBox is ever removed too.
 export async function extractFullText(base64Content: string): Promise<string | null> {
   const credsRaw = process.env.GOOGLE_VISION_CREDENTIALS_JSON;
   if (!credsRaw) return null;

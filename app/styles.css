@@ -812,3 +812,114 @@ input[type="date"] {
   font-weight: 700;
   letter-spacing: 0.06em;
 }
+
+/* ===================================================================
+   PrimeCore look (same as Ops and the Home hub): soft gray page, white
+   rounded cards with a light shadow that lift on hover, green primary
+   buttons. Visual only -- same pages, buttons and links as before.
+   =================================================================== */
+:root {
+  --pc-green: #2ca01c;
+  --pc-green-dark: #1f7a12;
+  --pc-green-soft: #e9f6e6;
+  --pc-ink: #1f2937;
+  --pc-muted: #6b7280;
+  --pc-line: #e9ecf1;
+  --pc-shadow: 0 1px 3px rgba(17, 24, 39, .06), 0 14px 30px -22px rgba(17, 24, 39, .35);
+  --pc-shadow-hover: 0 4px 10px rgba(17, 24, 39, .08), 0 22px 40px -20px rgba(17, 24, 39, .45);
+}
+body { background: #f4f5f8; color: var(--pc-ink); }
+main { padding-top: 26px; }
+main h1 { font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+.muted { color: var(--pc-muted); }
+
+/* Cards (areas, categories, folders) */
+.category-grid { gap: 14px; }
+.category-card,
+.tile,
+.capture-card {
+  border: 1px solid var(--pc-line);
+  border-radius: 18px;
+  box-shadow: var(--pc-shadow);
+}
+.category-card,
+.tile {
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.category-card { padding: 26px 12px; min-height: 84px; }
+.category-card-label { font-size: 15px; font-weight: 700; color: var(--pc-ink); }
+@media (hover: hover) {
+  .category-card:hover,
+  .tile:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: var(--pc-shadow-hover);
+    border-color: #cfe9c9;
+  }
+}
+.category-card:active,
+.tile:active { transform: scale(.97); border-color: var(--pc-green); }
+.category-card-icon { background: var(--pc-green-soft); color: var(--pc-green-dark); }
+.tile { border-radius: 16px; }
+.tile-add { background: #fff; border: 1.5px dashed #b7dcb0; color: var(--pc-green-dark); box-shadow: none; }
+.capture-card { padding: 18px; }
+
+/* Buttons */
+.camera-button {
+  padding: 14px;
+  border-radius: 999px;
+  background: var(--pc-green);
+  font-weight: 700;
+  box-shadow: 0 8px 18px -10px rgba(44, 160, 28, .9);
+  transition: background .15s ease, transform .12s ease;
+}
+@media (hover: hover) {
+  .camera-button:hover:not(:disabled) { background: var(--pc-green-dark); transform: translateY(-1px); }
+}
+.camera-button:disabled { background: #a7c9a2; box-shadow: none; }
+.secondary-button {
+  border-radius: 999px;
+  border: 1px solid #d0d5dd;
+  color: var(--pc-ink);
+  transition: background .15s ease, border-color .15s ease;
+}
+@media (hover: hover) {
+  .secondary-button:hover { background: #f9fafb; border-color: #b7dcb0; }
+}
+/* Full-width "+ Add site"-style secondary buttons: dashed green */
+button.secondary-button[style*="100%"],
+button.secondary-button.block {
+  background: #fff;
+  border: 1.5px dashed #b7dcb0;
+  color: var(--pc-green-dark);
+  border-radius: 14px;
+}
+
+/* Inputs */
+input[type="text"],
+input[type="password"],
+input[type="date"] {
+  border-radius: 10px;
+  background: #fbfcfd;
+  transition: border-color .12s ease, box-shadow .12s ease, background .12s ease;
+}
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="date"]:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--pc-green);
+  box-shadow: 0 0 0 3px rgba(44, 160, 28, .15);
+}
+.field-label { color: var(--pc-muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+
+/* Photo gallery */
+.gallery-item { border-radius: 12px; box-shadow: var(--pc-shadow); }
+.empty-state {
+  background: #fff;
+  border: 1px dashed #dfe3ea;
+  border-radius: 14px;
+  padding: 20px;
+  margin-top: 12px;
+}
+.status-ok { color: var(--pc-green-dark); }
+.capture-card button.secondary-button { border: 1px solid #d0d5dd; border-radius: 999px; color: var(--pc-ink); }

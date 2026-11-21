@@ -7,15 +7,6 @@ import { detectTextBoundingBox } from "@/lib/googleVision";
 // for "where the nameplate's information is." Not perfect -- nameplates
 // vary a lot -- so the client falls back to the uncropped photo whenever
 // this returns box: null.
-//
-// Deliberately kept on Google Vision rather than migrated to Claude
-// vision alongside detect-drawing-name/route.ts: this route needs real
-// pixel coordinates in the original image's coordinate space, which a
-// vision-language model isn't built to return reliably (images get
-// resized internally, and there's no guarantee a reported box maps back
-// precisely to the original photo's pixels the way a real object/text
-// detector's bounding box does). Google Vision's TEXT_DETECTION is the
-// right tool for this specific job.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body?.image) {
