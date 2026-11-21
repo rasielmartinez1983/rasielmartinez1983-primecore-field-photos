@@ -999,3 +999,22 @@ header.app-header .app-header-user-link:hover { background: rgba(255, 255, 255, 
   header.app-header .app-logo { max-width: 150px; }
   header.app-header h1 { font-size: 21px; }
 }
+
+/* Back link ("‹ Projects", "‹ Back"…) sits under the banner, at the top
+   of the page, instead of on top of the photos. */
+.page-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #e9ecf1;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, .06);
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 600;
+  transition: background .15s ease, border-color .15s ease, transform .12s ease;
+}
+.page-back:hover { background: #e9f6e6; border-color: #cfe9c9; color: #1f7a12; transform: translateY(-1px); }

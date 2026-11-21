@@ -209,11 +209,12 @@ export default function ProjectPage({ params }: { params: Promise<{ id: string }
     <>
       <header className="app-header">
         <HeaderBgStrip />
-        <a href="/" className="app-header-back">‹ Projects</a>
+        <div className="app-header-spacer" />
         <img src="/logo.png" alt="PrimeCore" className="app-logo" />
         <div className="app-header-spacer" />
       </header>
       <main>
+        <a href="/" className="page-back">‹ Projects</a>
         <h1>{project ? `${project.substationName} — ${project.name}` : "Loading…"}</h1>
         {project && (project.client || project.date) && (
           <p className="muted" style={{ marginTop: 0 }}>

@@ -124,11 +124,12 @@ export default function OneLinePage() {
     <>
       <header className="app-header">
         <HeaderBgStrip />
-        <a href="/" className="app-header-back">‹ Projects</a>
+        <div className="app-header-spacer" />
         <img src="/logo.png" alt="PrimeCore" className="app-logo" />
         <div className="app-header-spacer" />
       </header>
       <main>
+        <a href="/" className="page-back">‹ Projects</a>
         <h1>One Line</h1>
         <p className="muted">
           Drop the substation&apos;s one-line print photo here -- independent of any project, so it&apos;s ready

@@ -70,11 +70,12 @@ export default function FaceIdSettingsPage() {
     <>
       <header className="app-header">
         <HeaderBgStrip />
-        <a href="/" className="app-header-back">‹ Home</a>
+        <div className="app-header-spacer" />
         <img src="/logo.png" alt="PrimeCore" className="app-logo" />
         <div className="app-header-spacer" />
       </header>
       <main>
+        <a href="/" className="page-back">‹ Home</a>
         <h1>Face ID Devices</h1>
         <p className="muted">Every device below can sign in with Face ID / Touch ID.</p>
 

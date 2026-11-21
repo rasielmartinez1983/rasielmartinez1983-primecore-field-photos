@@ -276,11 +276,12 @@ export default function AreaPage({ params }: { params: Promise<{ id: string; are
     <>
       <header className="app-header">
         <HeaderBgStrip />
-        <a href={`/project/${id}`} className="app-header-back">‹ {project?.substationName || "Project"}</a>
+        <div className="app-header-spacer" />
         <img src="/logo.png" alt="PrimeCore" className="app-logo" />
         <div className="app-header-spacer" />
       </header>
       <main>
+        <a href={`/project/${id}`} className="page-back">‹ {project?.substationName || "Project"}</a>
         <h1>{areaLabel(area)}</h1>
         <p className="muted">Choose an equipment folder, or add new ones.</p>
 
