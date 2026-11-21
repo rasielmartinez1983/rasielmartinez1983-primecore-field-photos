@@ -520,13 +520,12 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     <>
       <header className="app-header">
         <HeaderBgStrip />
-        <a href={backHref} className="app-header-back">
-          ‹ Back
-        </a>
+        <div className="app-header-spacer" />
         <img src="/logo.png" alt="PrimeCore" className="app-logo" />
         <div className="app-header-spacer" />
       </header>
       <main>
+        <a href={backHref} className="page-back">‹ Back</a>
         <h1>{folder?.name || "Loading…"}</h1>
         <p className="muted">
           {folder
