@@ -923,3 +923,79 @@ input[type="date"]:focus {
 }
 .status-ok { color: var(--pc-green-dark); }
 .capture-card button.secondary-button { border: 1px solid #d0d5dd; border-radius: 999px; color: var(--pc-ink); }
+
+/* ===================================================================
+   Photo banner exactly like PrimeCore Ops and the Home hub: taller bar,
+   bigger photos that move slowly and blend into each other (no dark
+   edges), green-to-yellow line under it, logo with a soft shadow.
+   Visual only -- same header markup.
+   =================================================================== */
+header.app-header {
+  padding: 24px 32px;
+  padding-top: calc(24px + env(safe-area-inset-top));
+  border-bottom: 3px solid transparent;
+  border-image: linear-gradient(90deg, #4c7a1f, #7ec13f 45%, #f5c518) 1;
+  box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.45);
+}
+.app-header-bg { -webkit-mask-image: none; mask-image: none; }
+.app-header-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+}
+.app-header-bg-track { animation-duration: 150s; }
+.app-header-bg img {
+  width: 260px;
+  margin-right: -47px;
+  opacity: 0.75;
+  filter: brightness(1.05) saturate(1.05);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.25) 4%, rgba(0,0,0,0.6) 9%, rgba(0,0,0,0.88) 14%, #000 18%, #000 82%, rgba(0,0,0,0.88) 86%, rgba(0,0,0,0.6) 91%, rgba(0,0,0,0.25) 96%, transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.25) 4%, rgba(0,0,0,0.6) 9%, rgba(0,0,0,0.88) 14%, #000 18%, #000 82%, rgba(0,0,0,0.88) 86%, rgba(0,0,0,0.6) 91%, rgba(0,0,0,0.25) 96%, transparent 100%);
+}
+header.app-header .app-logo {
+  max-width: 210px;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.75));
+}
+header.app-header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.65);
+}
+.app-header-back {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.45);
+  color: #e4e7ec;
+  font-size: 13px;
+  backdrop-filter: blur(6px);
+}
+.app-header-back:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+header.app-header .presence-chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e4e7ec;
+  font-size: 12px;
+  backdrop-filter: blur(6px);
+}
+header.app-header .presence-dot { box-shadow: 0 0 0 3px rgba(126, 193, 63, 0.25); }
+header.app-header .app-header-user-link {
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.45);
+  color: #e4e7ec;
+  text-decoration: none;
+  font-size: 12px;
+}
+header.app-header .app-header-user-link:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+@media (max-width: 780px) {
+  header.app-header { padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top)); }
+  .app-header-bg img { width: 180px; margin-right: -32px; }
+  header.app-header .app-logo { max-width: 150px; }
+  header.app-header h1 { font-size: 21px; }
+}
