@@ -1056,3 +1056,35 @@ header.app-header .app-header-user-link:hover { background: rgba(255, 255, 255, 
 }
 .pill-outline:hover { background: #e9f6e6; transform: translateY(-1px); }
 .pill-btn:active { transform: scale(.98); }
+
+/* Every button sized to its text (not full width), centered, same pill
+   shape as the Clock In / New project buttons. */
+.camera-button,
+.secondary-button {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content !important;
+  max-width: 100%;
+  min-height: 42px;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding: 0 22px !important;
+  border-radius: 999px !important;
+  font-size: 14px;
+  text-align: center;
+  white-space: nowrap;
+}
+.camera-button {
+  box-shadow: 0 0 0 4px rgba(44, 160, 28, .12), 0 10px 20px -12px rgba(44, 160, 28, .9);
+}
+/* Small inline buttons (e.g. admin rows) stay inline */
+.secondary-button.admin-btn-small {
+  display: inline-flex !important;
+  min-height: 32px;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  font-size: 12px;
+}
+.amp-picker-btn { border-radius: 999px; padding: 7px 16px; }
