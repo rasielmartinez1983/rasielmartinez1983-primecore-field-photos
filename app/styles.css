@@ -1018,3 +1018,41 @@ header.app-header .app-header-user-link:hover { background: rgba(255, 255, 255, 
   transition: background .15s ease, border-color .15s ease, transform .12s ease;
 }
 .page-back:hover { background: #e9f6e6; border-color: #cfe9c9; color: #1f7a12; transform: translateY(-1px); }
+
+/* Home: "+ New project" and "One Line" as compact pills side by side,
+   like the Clock In button in Ops (green with a soft halo). */
+.home-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 18px 0 6px;
+}
+.pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 24px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.pill-green {
+  border: none;
+  background: #2ca01c;
+  color: #fff;
+  box-shadow: 0 0 0 5px rgba(44, 160, 28, .15), 0 14px 26px -12px rgba(44, 160, 28, .9);
+}
+.pill-green:hover { background: #1f7a12; transform: translateY(-1px); }
+.pill-outline {
+  border: 1.5px solid #b7dcb0;
+  background: #fff;
+  color: #1f7a12;
+  box-shadow: 0 1px 2px rgba(17, 24, 39, .06);
+}
+.pill-outline:hover { background: #e9f6e6; transform: translateY(-1px); }
+.pill-btn:active { transform: scale(.98); }

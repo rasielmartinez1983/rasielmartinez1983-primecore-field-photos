@@ -191,15 +191,16 @@ export default function HomePage() {
             exists (see OneLinePhoto in prisma/schema.prisma). Placed above
             the project list/creation form on purpose, since this is meant
             to be the first thing reached for that workflow. */}
-        <a href="/one-line" className="secondary-button" style={{ display: "block", textAlign: "center", marginTop: 14 }}>
-          📐 One Line
-        </a>
-
-        {!creating && (
-          <button className="camera-button" style={{ marginTop: 10 }} onClick={() => setCreating(true)}>
-            + New project
-          </button>
-        )}
+        <div className="home-actions">
+          {!creating && (
+            <button className="pill-btn pill-green" onClick={() => setCreating(true)}>
+              + New project
+            </button>
+          )}
+          <a href="/one-line" className="pill-btn pill-outline">
+            📐 One Line
+          </a>
+        </div>
 
         {creating && (
           <form className="capture-card" onSubmit={createProject}>
