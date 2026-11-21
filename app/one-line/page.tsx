@@ -124,12 +124,11 @@ export default function OneLinePage() {
     <>
       <header className="app-header">
         <HeaderBgStrip />
-        <div className="app-header-spacer" />
+        <a href="/" className="app-header-back">‹ Projects</a>
         <img src="/logo.png" alt="PrimeCore" className="app-logo" />
         <div className="app-header-spacer" />
       </header>
       <main>
-        <a href="/" className="page-back">‹ Projects</a>
         <h1>One Line</h1>
         <p className="muted">
           Drop the substation&apos;s one-line print photo here -- independent of any project, so it&apos;s ready
@@ -168,8 +167,8 @@ export default function OneLinePage() {
               id="one-line-input"
               disabled={uploading}
             />
-            <label htmlFor="one-line-input" className="camera-button" style={{ display: "block" }}>
-              {uploading ? "Uploading…" : `📷 Add one-line photo for "${searchedFor}"`}
+            <label htmlFor="one-line-input" className="camera-button photo-take">
+              {uploading ? "Uploading…" : `Add one-line photo for "${searchedFor}"`}
             </label>
             {error && <div className="error-text">{error}</div>}
 

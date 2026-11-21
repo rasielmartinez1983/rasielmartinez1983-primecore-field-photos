@@ -520,12 +520,13 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
     <>
       <header className="app-header">
         <HeaderBgStrip />
-        <div className="app-header-spacer" />
+        <a href={backHref} className="app-header-back">
+          ‹ Back
+        </a>
         <img src="/logo.png" alt="PrimeCore" className="app-logo" />
         <div className="app-header-spacer" />
       </header>
       <main>
-        <a href={backHref} className="page-back">‹ Back</a>
         <h1>{folder?.name || "Loading…"}</h1>
         <p className="muted">
           {folder
@@ -698,8 +699,8 @@ export default function FolderPage({ params }: { params: Promise<{ id: string }>
                 style={{ display: "none" }}
                 id="camera-input"
               />
-              <label htmlFor="camera-input" className="camera-button" style={{ display: "block" }}>
-                {isDrawingArea ? "📷 Scan drawing(s)" : "📷 Take photo(s)"}
+              <label htmlFor="camera-input" className="camera-button photo-take">
+                {isDrawingArea ? "Scan drawing(s)" : "Take photo(s)"}
               </label>
               <p className="muted" style={{ marginBottom: 8, marginTop: 8 }}>
                 {isDrawingArea

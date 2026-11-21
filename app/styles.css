@@ -1088,3 +1088,32 @@ header.app-header .app-header-user-link:hover { background: rgba(255, 255, 255, 
   font-size: 12px;
 }
 .amp-picker-btn { border-radius: 999px; padding: 7px 16px; }
+
+/* "Take photo(s)" / "Scan drawing(s)" / "Add one-line photo": round green
+   camera button like the receipt photo in Ops > Expenses, with the text
+   under it. Still the same label that opens the camera. */
+label.camera-button.photo-take {
+  flex-direction: column !important;
+  gap: 8px;
+  min-height: 0;
+  padding: 6px 12px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #1f7a12 !important;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: normal;
+  cursor: pointer;
+}
+label.camera-button.photo-take::before {
+  content: "";
+  display: block;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #2ca01c url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9.2 4h5.6l1.6 2.2H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8.2a2 2 0 0 1 2-2h3.6zM12 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z'/%3E%3C/svg%3E") center / 30px no-repeat;
+  box-shadow: 0 0 0 6px rgba(44, 160, 28, .14), 0 10px 20px -10px rgba(44, 160, 28, .9);
+  transition: transform .15s ease, background-color .15s ease;
+}
+label.camera-button.photo-take:hover::before { background-color: #1f7a12; transform: scale(1.05); }
+label.camera-button.photo-take:active::before { transform: scale(.96); }
