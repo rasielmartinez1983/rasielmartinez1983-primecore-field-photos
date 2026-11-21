@@ -44,13 +44,22 @@ export async function findProjectFolderPath(name: string): Promise<string | null
   if (!target) return null;
 
   const root = await listFolder(sharepointRoot());
-  const yearFolders = root.filter((r) => r.isFolder && r.name.startsWith("Projectos "));
+  // Up to 2026: "Projectos <year>/<project>". From 2027 (see ops'
+  // lib/projectFolder.ts): "Projects <year>/Projects/<project>", and once
+  // invoiced "Projects <year>/Projects Invoiced/<project>".
+  const parents: string[] = [];
+  for (const r of root) {
+    if (!r.isFolder) continue;
+    if (/^Projectos \d{4}$/.test(r.name)) parents.push(r.name);
+    else if (/^Projects \d{4}$/.test(r.name)) parents.push(`${r.name}/Projects`, `${r.name}/Projects Invoiced`);
+  }
 
   const candidates: { path: string; folder: string; exact: boolean }[] = [];
-  for (const yearFolder of yearFolders) {
+  for (const parent of parents) {
+    const yearFolder = { name: parent };
     let children;
     try {
-      children = await listFolder(`${sharepointRoot()}/${yearFolder.name}`);
+      children = await listFolder(`${sharepointRoot()}/${parent}`);
     } catch {
       continue; // best-effort -- one bad/empty year folder shouldn't block the others
     }
